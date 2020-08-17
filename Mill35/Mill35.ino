@@ -2139,7 +2139,7 @@ void loop()
          //      AnschlagVonMotor(0,0); // Bewegung anhalten
          if (richtung & (1<<RICHTUNG_A))
          {
-            Serial.printf("Vorwaerts: falsche richtung, auf Anschlag zu\n");
+            Serial.printf("Vorwaerts: falsche richtung, auf Anschlag zu, warten\n");
             
             anschlagstatus |= (1<< WAIT);
             usb_rawhid_send((void*)sendbuffer, 50);
