@@ -127,8 +127,11 @@
 
 #define WAIT          7
 
-#define RICHTUNG_A   0 // entspricht Motor A (motor 0)
-#define RICHTUNG_B   1
+#define RICHTUNG_A0   0 // Motor A vorwaerts
+#define RICHTUNG_A1   1 // Motor A rueckwaerts
+#define RICHTUNG_B0   2
+#define RICHTUNG_B1   3
+
 #define RICHTUNG_C   2
 #define RICHTUNG_D   3
 
