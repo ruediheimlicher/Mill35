@@ -512,7 +512,7 @@ uint8_t  AbschnittLaden_4M(const uint8_t* AbschnittDaten) // 22us
    
    if ((digitalReadFast(END_A0_PIN)) &&  (digitalReadFast(END_A1_PIN)))
    {
-      Serial.printf("Alles offen\n");
+     // Serial.printf("Alles offen\n");
       digitalWriteFast(MA_EN,LOW);
    }
    else
@@ -1257,7 +1257,7 @@ void loop()
 #pragma mark B3       
          case 0xB3: // sendTextdaten
          {
-            Serial.printf("*B3 Joystick*\n");
+            Serial.printf("*B3 Device: %d*\n",device);
             uint8_t i=0;
             for(i=0;i<33;i++) // 5 us ohne printf, 10ms mit printf
             { 
@@ -2121,44 +2121,48 @@ void loop()
    else // Schlitten bewegte sich auf Anschlag zu und ist am Anschlag A0
    {  
       
-      if (!(anschlagstatus & (1<< END_A0))) // Bit noch nicht gesetzt
+    //  if (!(anschlagstatus & (1<< END_A0))) // Bit noch nicht gesetzt
       {
-         anschlagstatus |= (1<< END_A0);
+    //     anschlagstatus |= (1<< END_A0);
          
-         Serial.printf("A0_PIN_status: %d\n",A0_PIN_status);
-         digitalWriteFast(MA_EN,HIGH);
+ //        Serial.printf("A0_PIN_status: %d\n",A0_PIN_status);
+ //        digitalWriteFast(MA_EN,HIGH);
          
          sendbuffer[0]=0xC5;
-         sendbuffer[11] = 0;
-
-         sendbuffer[12] = anschlagstatus;
-         sendbuffer[13] = richtung;
-         sendbuffer[14] = 13;
 
          // Serial.printf("Vorwaerts: Schlitten bewegte sich auf Anschlag zu und ist am Anschlag A0 anschlagstatus: %d richtungA: %d\n",anschlagstatus,richtungA);
          //      AnschlagVonMotor(0,0); // Bewegung anhalten
          if (richtung & (1<<RICHTUNG_A))
          {
             Serial.printf("Vorwaerts: falsche richtung, auf Anschlag zu, warten\n");
-            
-            anschlagstatus |= (1<< WAIT);
+ 
+            anschlagstatus |= (1<< END_A0);
+            digitalWriteFast(MA_EN,HIGH);
+            //anschlagstatus |= (1<< WAIT);
+            sendbuffer[11] = 0;
+            sendbuffer[12] = anschlagstatus;
+            sendbuffer[13] = richtung;
+            sendbuffer[14] = 13;
+
             usb_rawhid_send((void*)sendbuffer, 50);
+            richtung &= ~(1<<RICHTUNG_A);
+            StepCounterA = 0;
          }
          else if (StepCounterA)
          {
-            digitalWriteFast(MA_EN,LOW);
             if (anschlagstatus & (1<< END_A0))
             {
+               digitalWriteFast(MA_EN,LOW);
                Serial.printf("Vorwaerts: richtige richtung, vom Anschlag weg\n");
                anschlagstatus &= ~(1<< END_A0); // Bit fuer Anschlag A0 zuruecksetzen
                sendbuffer[14] = 0;
-               
-               //usb_rawhid_send((void*)sendbuffer, 50);
+               sendbuffer[0]=0xC5;
+               usb_rawhid_send((void*)sendbuffer, 50);
             }
          }
-         //usb_rawhid_send((void*)sendbuffer, 50);
       }
    }
+   
    
    // rueckwarts
    if (digitalRead(END_A1_PIN)) // Eingang ist HI, Schlitten nicht am Anschlag A1
