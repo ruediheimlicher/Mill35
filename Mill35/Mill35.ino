@@ -503,18 +503,21 @@ uint8_t  AbschnittLaden_4M(const uint8_t* AbschnittDaten) // 22us
    {
       //     Serial.printf("Motor A vorwaerts\n");
       richtung &= ~(1<<RICHTUNG_A0);
+      //richtung |= (1<<RICHTUNG_A1);
+      
       digitalWriteFast(MA_RI,HIGH);
       //lcd_putc('v');   // Vorwaerts
    }
    
    CounterA = DelayA;
    // CounterA = 0;
-   
+  
    if ((digitalReadFast(END_A0_PIN)) &&  (digitalReadFast(END_A1_PIN)))
    {
      // Serial.printf("Alles offen\n");
       digitalWriteFast(MA_EN,LOW);
    }
+   /* 
    else
    {
       if (digitalReadFast(END_A0_PIN)) // offen
@@ -548,7 +551,7 @@ uint8_t  AbschnittLaden_4M(const uint8_t* AbschnittDaten) // 22us
          Serial.printf("Abschnitt_Laden_4M Anschlag A1 zu\n");
       }
    }
-   
+   */
    //   Serial.printf("CounterA: %d\n",CounterA);
    
    
@@ -1199,7 +1202,7 @@ void loop()
          }break;
             
 #pragma mark A5           
-         case 0xA5: // 
+         case 0xA5: //  go home
          {
             //        Serial.printf("A5\n");
             uint8_t i=0;
@@ -1209,6 +1212,7 @@ void loop()
             }
             Serial.printf("\n");
             //Serial.printf("A5 setStepCounter\n");
+            /*
             if (StepCounterA)
             {
                uint8_t vorzeichenx = buffer[4];
@@ -1224,6 +1228,7 @@ void loop()
                //StepCounterB += dy;
                //           Serial.printf("setStepCounter dy: %d vorzeichen: %d\n",dy,vorzeicheny);
             }
+             */
             AbschnittLaden_4M(buffer);
          }break;
 #pragma mark B1    
@@ -1255,7 +1260,7 @@ void loop()
             
          }break;
 #pragma mark B3       
-         case 0xB3: // sendTextdaten
+         case 0xB3: // sendTextdaten: nur 1 Abschnitt
          {
             Serial.printf("*B3 Device: %d*\n",device);
             uint8_t i=0;
@@ -1403,11 +1408,12 @@ void loop()
 #pragma mark B5               
          case 0xB5: // PCB neu
          {
-            Serial.printf("***   B5\n");
+            Serial.printf("***   B5 Device: %d*\n",device);
             
             sendbuffer[0]=0xB6;
             
             usb_rawhid_send((void*)sendbuffer, 50);
+            
             uint8_t i=0;
             for(i=0;i<33;i++) // 5 us ohne printf, 10ms mit printf
             { 
@@ -2137,6 +2143,7 @@ void loop()
          usb_rawhid_send((void*)sendbuffer, 50);
          richtung &= ~(1<<RICHTUNG_A0);
          StepCounterA = 0;
+         
       }
       else if (StepCounterA)
       {
@@ -2171,18 +2178,18 @@ void loop()
          sendbuffer[11] = 0; // motor
          
   
-         Serial.printf("Rueckwaerts: Schlitten bewegte sich auf Anschlag A1 zu und ist am Anschlag A1 anschlagstatus: %d richtungA: %d\n",anschlagstatus,richtung & (1<<RICHTUNG_A0));
+         //Serial.printf("Rueckwaerts: Schlitten bewegte sich auf Anschlag A1 zu und ist am Anschlag A1 anschlagstatus: %d richtungA: %d\n",anschlagstatus,richtung & (1<<RICHTUNG_A0));
          //      AnschlagVonMotor(0,0); // Bewegung anhalten
-         if (!(richtung & (1<<RICHTUNG_A0)))
+         if ((richtung & (1<<RICHTUNG_A0)))
          {
-            Serial.printf("Rueckwaerts: not RichtungA\n");
-           if (anschlagstatus & (1<< END_A1))
+            //Serial.printf("Rueckwaerts: not RichtungA\n");
+           if ((anschlagstatus & (1<< END_A1)) && (StepCounterA))
             {
                digitalWriteFast(MA_EN,LOW);
                Serial.printf("Rueckwaerts: richtige richtung, vom Anschlag weg\n");
                anschlagstatus &= ~(1<< END_A1); // Bit fuer Anschlag A0 zuruecksetzen
                sendbuffer[14] = 0;
-               usb_rawhid_send((void*)sendbuffer, 50);
+               //usb_rawhid_send((void*)sendbuffer, 50);
             }
          }
          else 
@@ -2194,6 +2201,7 @@ void loop()
             sendbuffer[13] = richtung;
             sendbuffer[14] = 13;
             richtung |= (1<<RICHTUNG_A0);
+            StepCounterA = 0;
             usb_rawhid_send((void*)sendbuffer, 50);
          }
          //
@@ -2286,8 +2294,6 @@ void loop()
             {
                //              StepCounterA--; // ein Step weniger
             }
-            
-            
          }
          else
          {
