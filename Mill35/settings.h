@@ -113,19 +113,19 @@
 
 // X-Achse
 #define END_A0          0       //  Bit fuer Endanschlag A0 
-#define END_A1          1       //  Bit fuer Endanschlag A0 
+#define END_A1          1       //  Bit fuer Endanschlag A1 
 
 // Y-Achse
 #define END_B0          2       //           Endanschlag B0 
-#define END_B1          3       //           Endanschlag B0 
+#define END_B1          3       //           Endanschlag B1 
 
 // Spindel
 #define END_C0          4      //  Bit fuer Endanschlag C0 
-#define END_C1          5       //  Bit fuer Endanschlag C0 
+#define END_C1          5       //  Bit fuer Endanschlag C1 
 
 #define END_D0          7       //           Endanschlag D0 
 
-#define WAIT          7
+#define FIRSTRUN          7
 
 #define RICHTUNG_A0   0 // Motor A vorwaerts
 #define RICHTUNG_A1   1 // Motor A rueckwaerts
