@@ -1,3 +1,7 @@
+//#include <Wire.h>
+//#include <WireIMXRT.h>
+//#include <WireKinetis.h>
+
 ///
 /// @mainpage   Stepper32
 ///
@@ -28,7 +32,7 @@
 /// @author      Ruedi Heimlicher
 /// @author      Ruedi Heimlicher
 /// @date      06.05.2020 21:02
-/// @version   <#version#>
+/// @version   1.1
 ///
 /// @copyright   (c) Ruedi Heimlicher, 2020
 /// @copyright   GNU General Public Licence
@@ -41,15 +45,17 @@
 // Core library for code-sense - IDE-based
 // !!! Help: http://bit.ly/2AdU7cu
 #include "Arduino.h"
+#include "TeensyStep.h"
 
 #include "gpio_MCP23S17.h"
 #include <SPI.h>
 #include "lcd.h"
 #include "settings.h"
 //#include <Wire.h>
-#include <i2c_t3.h>
-#include <LiquidCrystal_I2C.h> // auch in Makefile angeben!!!
+//#include <i2c_t3.h>
+//#include <LiquidCrystal_I2C.h> // auch in Makefile angeben!!!
 #include <TeensyThreads.h>
+
 // Set parameters
 
 
@@ -138,9 +144,9 @@ volatile uint8_t           tabledatastatus=0x00;
 
 volatile uint8_t           usbstatus=0x00;
 static volatile uint8_t    motorstatus=0x00;
-volatile uint8_t    anschlagstatus=0x00;
+volatile uint8_t           anschlagstatus=0x00;
 
-volatile int16_t    anschlagcounter = 0;
+volatile int16_t           anschlagcounter = 0;
 
 volatile uint8_t           timerstatus=0;
 
@@ -732,8 +738,9 @@ uint8_t  AbschnittLaden_4M(const uint8_t* AbschnittDaten) // 22us
 
 
 
+
 gpio_MCP23S17     mcp0(10,0x20);//instance 0 (address A0,A1,A2 tied to 0)
-LiquidCrystal_I2C lcd(0x27,16,2);  // set the LCD address to 0x20
+//LiquidCrystal_I2C lcd(0x27,16,2);  // set the LCD address to 0x20
 //delay(1000); 
 // Add setup code
 
@@ -885,9 +892,9 @@ void setup()
    }
    
    delay(100);
-   lcd.init();
+//   lcd.init();
    delay(100);
-   lcd.backlight();
+   //lcd.backlight();
    
    //   rampstatus |=(1<<RAMPOKBIT);
    
@@ -1285,6 +1292,69 @@ void loop()
                
             }
           }break;
+            
+            
+ #pragma mark B7             
+         case 0xB7: // report_move_Drill (wie BA)
+         {
+            Serial.printf("\nB7 \n");
+            sendbuffer[0]=0xB9;
+            sendbuffer[24] =  buffer[32];
+           
+            uint8_t i=0;
+            for(i=0;i<48;i++) // 5 us ohne printf, 10ms mit printf
+            { 
+               Serial.printf("%d \t",buffer[i]);
+               CNCDaten[0][i]=buffer[i];  
+            }
+            uint8_t indexh=buffer[26];
+            uint8_t indexl=buffer[27];
+            Serial.printf("indexh: %d indexl: %d\n",indexh,indexl);
+            abschnittnummer= indexh<<8;
+            abschnittnummer += indexl;
+            Serial.printf("BA abschnittnummer: *%d*\n",abschnittnummer);
+            drillstatus = buffer[33];
+            Serial.printf("B7 Drillaktion drillstatus new: %d\n",drillstatus);
+
+            drillstatus = 0xA0; // keine rueckweg
+            tabledatastatus = 0xFF;
+            sendbuffer[22] = drillstatus;
+            if (abschnittnummer == 0)
+            {
+               ringbufferstatus=0x00;
+               //anschlagstatus=0;
+               ringbufferstatus |= (1<<FIRSTBIT);
+               ringbufferstatus |= (1<<STARTBIT);
+               
+            }
+            sendbuffer[5]=(abschnittnummer & 0xFF00) >> 8;;
+            sendbuffer[6]=abschnittnummer & 0x00FF;
+            
+            // von default:
+            if (buffer[25]& 0x02)// letzter Abschnitt
+            {
+               //    Serial.printf("------------------------  last abschnitt\n");
+               ringbufferstatus |= (1<<LASTBIT); // letzter Abschnitt
+               if (ringbufferstatus & (1<<FIRSTBIT)) // nur ein Abschnitt
+               {
+                  // endposition setzen
+                  //                     Serial.printf("------------------------  erster ist letzter Abschnitt\n");
+                  endposition=abschnittnummer; // erster ist letzter Abschnitt
+                  
+                  //                      Serial.printf("------------------------  nur ein abschnitt endposition: %d   * ringbufferstatus: %d\n",endposition, ringbufferstatus);
+               }
+               
+            }
+            
+            //          uint8_t drill_lage = AbschnittLaden_4M(buffer);
+            
+            //          Serial.printf("BA drill_lage: *%d*\n",drill_lage);
+            
+            //usb_rawhid_send((void*)sendbuffer, 50);
+            Serial.printf("         B7 END\n\n");
+            
+         }break;
+            
 #pragma mark                    BA             
          case 0xBA: // Drillaktion
          {
@@ -1298,9 +1368,11 @@ void loop()
                Serial.printf("BA Drillaktion fertig\n");
                break;
             }
-            {
-               sendbuffer[22] = drillstatus;
-            }
+            
+            
+            
+            sendbuffer[22] = drillstatus;
+         
             
             uint8_t i=0;
             for(i=0;i<48;i++) // 5 us ohne printf, 10ms mit printf
@@ -1312,7 +1384,6 @@ void loop()
             Serial.printf("\n");
             sendbuffer[24] =  buffer[32];
 
-            sendbuffer[24] =  buffer[32];
             
             uint8_t indexh=buffer[26];
             uint8_t indexl=buffer[27];
@@ -1482,8 +1553,8 @@ void loop()
             digitalWriteFast(MB_EN,HIGH);
             digitalWriteFast(MC_EN,HIGH);
             digitalWriteFast(MD_EN,HIGH);
-            lcd.setCursor(0,1);
-            lcd.print("HALT");
+            //lcd.setCursor(0,1);
+            //lcd.print("HALT");
             
             // lcd_gotoxy(0,1);
             // lcd_puts("HALT\0");
@@ -2662,9 +2733,9 @@ void loop()
             sendbuffer[20] = cncstatus;
             
             // drillstatus incr.
-            
             drillstatus++;
             Serial.printf("\nMotor C abschnittnummer==endposition drillstatus incr drillstatus nach: %d\n",drillstatus);
+            
             sendbuffer[22] = drillstatus;
             
             
@@ -2672,6 +2743,7 @@ void loop()
             motorstatus=0;
             
             usb_rawhid_send((void*)sendbuffer, 100);
+            
             ringbufferstatus = 0;
             
             ladeposition=0;
@@ -2951,6 +3023,8 @@ void loop()
          
          sendbuffer[22] = drillstatus;
          sendbuffer[23] = tabledatastatus;
+         
+         sendbuffer[33] = tabledatastatus;
       
          //sendbuffer[7]=(ladeposition & 0xFF00) >> 8;
          uint8_t senderfolg = usb_rawhid_send((void*)sendbuffer, 100);
@@ -2982,4 +3056,3 @@ void loop()
    
    /**   End CNC-routinen   ***********************/
 }
-
