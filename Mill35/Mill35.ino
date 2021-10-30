@@ -238,8 +238,11 @@ constexpr int spr1 = 2*200;  // 3200 steps per revolution
 constexpr int spr2 = 2*200;  // 3200 steps per revolution
 
 static volatile uint8_t    controllerstatus=0x00;
-#define RUNNING   1
 
+volatile uint8_t    repeatcounter=0; // anzahl repeats
+#define RUNNING   1
+#define REPEATING   2
+#define STOP      3
 // end TeensyStep
 
 
@@ -439,6 +442,86 @@ void delaytimerfunction(void) // 1us ohne ramp
    
 }
 
+uint8_t  RepeatAbschnittLaden_TS(const uint8_t* AbschnittDaten) // 22us
+{
+   Serial.printf("RepeatAbschnittDaten_TS Start\n");
+   stopTimer2();
+   uint8_t returnwert=0;
+   int lage = 0;
+   
+   lage = AbschnittDaten[25]; // Start: 1, innerhalb: 0, Ende: 2
+   if (lage & 0x01)
+   {
+      returnwert=1;
+   }
+   if (lage & 0x02) // letztes Element
+   {
+      returnwert=2;
+   }
+   StepCounterA = AbschnittDaten[0] | (AbschnittDaten[1]<<8) | (AbschnittDaten[2]<<16) | ((AbschnittDaten[3] & 0x7F)<<24);
+    // Vorzeichen bestimmen
+   if ((AbschnittDaten[3] & 0x80) > 0)
+   {
+      //Serial.printf("StepCounterA: Vorzeichen negativ\n");
+      StepCounterA *= -1;
+   }
+   else
+   {
+      //Serial.printf("StepCounterA: Vorzeichen positiv\n");
+   }
+   Serial.printf("StepCounterA mit VZ: %d\n",StepCounterA);
+   StepCounterB = AbschnittDaten[8] | (AbschnittDaten[9]<<8) | (AbschnittDaten[10]<<16) | ((AbschnittDaten[11] & 0x7F)<<24);
+   //Serial.printf("StepCounterB: %d \n",StepCounterB);
+   // Vorzeichen bestimmen
+   if ((AbschnittDaten[11] & 0x80) > 0)
+   {
+      //Serial.printf("StepCounterB: Vorzeichen negativ\n");
+      StepCounterB *= -1;
+   }
+   else
+   {
+      //Serial.printf("StepCounterB: Vorzeichen positiv\n");
+   }
+   Serial.printf("StepCounterB mit VZ: %d\n",StepCounterB);
+   
+   uint32_t dA = StepCounterA;
+   uint32_t dB = StepCounterB;
+
+   //Serial.printf("da: %d dB: %d\n",dA,dB);
+   motor_A.setTargetRel(dA);
+   motor_B.setTargetRel(dB);
+   Serial.printf("repeatcounter: %d\n",repeatcounter);
+   if (repeatcounter == 1) // Start
+   {
+      Serial.printf("repeatcounter 1: %d\n",repeatcounter);
+      //   if ((digitalReadFast(END_A0_PIN)) &&  (digitalReadFast(END_A1_PIN)))
+      {
+         // Serial.printf("Alles offen\n");
+         digitalWriteFast(MA_EN,LOW);
+      }
+      //   if ((digitalReadFast(END_B0_PIN)) &&  (digitalReadFast(END_B1_PIN)))
+      {
+         // Serial.printf("Alles offen\n");
+         digitalWriteFast(MB_EN,LOW);
+      }
+      controllerstatus |= (1<<RUNNING);
+      controller.moveAsync(motor_A, motor_B);
+
+   }
+   else if (repeatcounter == 0) // end
+   {
+      Serial.printf("repeatcounter 0: %d\n",repeatcounter);
+      digitalWriteFast(MA_EN,HIGH);
+      digitalWriteFast(MB_EN,HIGH);
+      controllerstatus |= (1<<STOP);
+
+   }
+   Serial.printf("RepeatAbschnittDaten_TS End\n");
+   startTimer2();
+   return returnwert;
+   
+}
+ 
 
 
 
@@ -1302,22 +1385,38 @@ void loop()
       
    }// sinceblink
    
-   if (sincelaststep > 5000)
+   if (sincelaststep > 500)
    {
       uint32_t speed = controller.getCurrentSpeed();
       if (controller.isRunning())
       {
          //Serial.printf("motor running\n");
+         /*
+         if ((controllerstatus & (1<<STOP)) && (repeatcounter == 0))
+             {
+            digitalWriteFast(MA_EN,HIGH);
+            digitalWriteFast(MB_EN,HIGH);
+            digitalWriteFast(MC_EN,HIGH);
+            controllerstatus &= ~(1<<RUNNING);
+            controllerstatus &= ~(1<<STOP);
+
+            }
+          */
       }
       else
       {
          if (controllerstatus & (1<<RUNNING))
          {
          Serial.printf("motor finished\n");
+         controller.stopAsync();
+         motor_A.setTargetRel(0);
+         motor_B.setTargetRel(0);
+       
          digitalWriteFast(MA_EN,HIGH);
          digitalWriteFast(MB_EN,HIGH);
          digitalWriteFast(MC_EN,HIGH);
          controllerstatus &= ~(1<<RUNNING);
+         
          }
 
       }
@@ -1899,6 +1998,7 @@ void loop()
 #pragma mark   BC                  TeensyStep           
          case 0xBC:
          {
+            repeatcounter = 0; // reset
             Serial.printf("* TeensyStep BC Device: %d* Data: \n",device);
             uint8_t i=0;
             for(i=0;i<48;i++) // 5 us ohne printf, 10ms mit printf
@@ -2041,6 +2141,175 @@ void loop()
             }
             interrupts();
          }break;
+            
+#pragma mark   DC            Pfeiltaste      TeensyStep           
+         case 0xDC:
+         {
+            Serial.printf("* TeensyStep DC Device: %d* Data: \n",device);
+            uint8_t i=0;
+            for(i=0;i<48;i++) // 5 us ohne printf, 10ms mit printf
+            { 
+               Serial.printf("%d \t",buffer[i]);
+            }
+            Serial.printf("\n");
+            sendbuffer[24] =  buffer[32];
+            
+            uint8_t indexh=buffer[26];
+            uint8_t indexl=buffer[27];
+            Serial.printf("indexh: %d indexl: %d\n",indexh,indexl);
+            abschnittnummer= indexh<<8;
+            abschnittnummer += indexl;
+            //Serial.printf("abschnittnummer: *%d*\n",abschnittnummer);
+            sendbuffer[5]=(abschnittnummer & 0xFF00) >> 8;;
+            sendbuffer[6]=abschnittnummer & 0x00FF;
+            
+            // Lage:
+            
+            uint8_t lage = buffer[25];
+            
+            uint8_t mausstatus = buffer[37];
+            if (mausstatus & (1<<1)) // bit gesetzt
+            {
+               repeatcounter++;
+            }
+            else 
+            {
+               repeatcounter = 0; // mouseup
+               Serial.printf("DC repeatcounter 0: %d\n",repeatcounter);
+               digitalWriteFast(MA_EN,HIGH);
+               digitalWriteFast(MB_EN,HIGH);
+               controller.stopAsync();
+               motor_A.setTargetRel(0);
+               motor_B.setTargetRel(0);
+
+
+            }
+            Serial.printf("DC  **********  mausstatus(37) %d repeatcounter: %d\n",mausstatus,repeatcounter);
+                          
+                          
+            //Serial.printf("DC abschnittnummer: %d\tbuffer(25) lage: %d \t device: %d mausstatus(37): %d\n",abschnittnummer,lage,device,mausstatus);
+            //             Serial.printf("count: %d\n",buffer[22]);
+            if (abschnittnummer==0)  // Start
+            {
+               //noInterrupts();
+               //Serial.printf("DC abschnittnummer 0\n");
+               //Serial.printf("DC abschnittnummer 0 \tbuffer25 lage: %d \t buffer32 device: %d\n",buffer[25],buffer[32]);
+               //             Serial.printf("count: %d\n",buffer[22]);
+               //PWM= buffer[29];
+               //              lcd.print(String(PWM));
+               
+               ladeposition=0;
+               //globalaktuelleladeposition = 0;
+               aktuelleladeposition = 0;
+               endposition=0xFFFF;
+               cncstatus = 0;
+               sendstatus = 0;
+               motorstatus = 0;
+               korrekturcounterx = 0;
+               korrekturcountery = 0;
+               ringbufferstatus=0x00;
+               //anschlagstatus=0;
+               ringbufferstatus |= (1<<FIRSTBIT);
+               ringbufferstatus |= (1<<STARTBIT);
+               AbschnittCounter=0;
+               //sendbuffer[8]= versionintl;
+               //sendbuffer[8]= versioninth;
+               sendbuffer[5]=(abschnittnummer & 0xFF00) >> 8;;
+               sendbuffer[6]=abschnittnummer & 0x00FF;
+               
+               //lcd_gotoxy(0,0);
+               sendbuffer[14] = (TIMERINTERVALL & 0xFF00)>>8;
+               sendbuffer[15] = (TIMERINTERVALL & 0x00FF);
+               sendbuffer[8] = ladeposition;
+               sendbuffer[0]=0xDC;
+               //               Serial.printf("------------------------------------->  first abschnitt, endposition: %d\n",endposition);
+               
+               /*
+                if (code == 0xF0) // cncstatus fuer go_home setzen
+                {
+                
+                sendbuffer[0]=0x45;
+                
+                cncstatus |= (1<<GO_HOME); // Bit fuer go_home setzen
+                usb_rawhid_send((void*)sendbuffer, 50);
+                }
+                else if (code == 0xF1)
+                {
+                sendbuffer[0]=0x44;
+                cncstatus &= ~(1<<GO_HOME); // Bit fuer go_home zuruecksetzen
+                usb_rawhid_send((void*)sendbuffer, 50);
+                }
+                */
+               // Abschnitt 0 melden
+               
+               usb_rawhid_send((void*)sendbuffer, 50);
+               
+               //               startTimer2();
+               //               interrupts();
+               // Serial.printf("------------------------------------->  first abschnitt end\n");
+            }
+            else // Abschnittnummer > 0
+            {
+               Serial.printf("XX\n");
+               // Ablauf schon gestartert
+               //          Serial.printf("  -----                  B3 Ablauf gestartet, abschnittnummer: %d\n",abschnittnummer);
+               //lcd.setCursor(12,0);
+               //lcd.print(String(abschnittnummer));
+               
+            }
+            
+            
+            // lage im Ablauf: 
+            // 1: erster Abschnitt
+            // 2: letzter Abschnitt
+            // 0: innerer Abschnitt
+            
+            if (buffer[25]& 0x02)// letzter Abschnitt
+            {
+               //              Serial.printf("------------------------  last abschnitt\n");
+               ringbufferstatus |= (1<<LASTBIT); // letzter Abschnitt
+               if (ringbufferstatus & (1<<FIRSTBIT)) // nur ein Abschnitt
+               {
+                  // endposition setzen
+                  //                Serial.printf("------------------------  erster ist letzter Abschnitt\n");
+                  endposition=abschnittnummer; // erster ist letzter Abschnitt
+                  
+                  //               Serial.printf("------------------------  nur ein abschnitt endposition: %d   * ringbufferstatus: %d\n",endposition, ringbufferstatus);
+               }
+               
+            }
+            
+            uint8_t pos=(abschnittnummer);
+            
+            pos &= 0x03; // 2 bit // Beschraenkung des index auf Buffertiefe 
+            Serial.printf("DC:  abschnittnummer: %d endposition: %d pos: %d\n",abschnittnummer,endposition,pos);
+            //if (abschnittnummer>8)
+            
+            {
+               //lcd_putint1(pos);
+            }
+            
+            // Daten laden in ringbuffer an Position pos
+            //          uint8_t i=0;
+            /*
+             for(i=0;i<10;i++)
+             {
+             Serial.printf("%d\t",i);
+             }
+             */
+            //Serial.printf("\n");
+            //OSZI_A_LO();
+            //              Serial.printf("default: abschnittnummer: %d pos: %d\n",abschnittnummer,pos);
+            //for(i=0;i<USB_DATENBREITE;i++) // 5 us ohne printf, 10ms mit printf
+            for(i=0;i<64;i++) // 5 us ohne printf, 10ms mit printf
+            { 
+               //                 Serial.printf("%d \t",buffer[i]);
+               CNCDaten[pos][i]=buffer[i];  
+            }
+            interrupts();
+         }break;
+
+            
 #pragma mark                    CA             
          case 0xCA: // goto Zeile Kopie BA
          {
@@ -2691,20 +2960,38 @@ void loop()
        Serial.printf("%d\t",CNCDaten[ladeposition][i]);
        }
       Serial.printf("\n");
-      
-      if ((code == 0xBC) || (code == 0xB4))
+      switch (code)
       {
-         Serial.printf("loop AbschnittLaden_TS\n");
-         lage=AbschnittLaden_TS(CNCDaten[ladeposition]); // erster Wert im Ringbuffer
-         Serial.printf("loop AbschnittLaden_TS end\n");
-      }
-      else
-      {
-         Serial.printf("loop AbschnittLaden_TM\n");
-         lage=AbschnittLaden_4M(CNCDaten[ladeposition]); // erster Wert im Ringbuffer
-         Serial.printf("loop AbschnittLaden_TM end\n");
-      }
-      
+         case 0xDC:
+         {
+            if (repeatcounter == 1) // erster Auftritt
+            {
+               Serial.printf("loop RepeatAbschnittLaden_TS start\n");
+               lage=RepeatAbschnittLaden_TS(CNCDaten[ladeposition]); // erster Wert im Ringbuffer
+               Serial.printf("loop RepeatAbschnittLaden_TS end\n");
+
+            }
+
+         }break;
+         case 0xBC:
+         case 0xB4:
+         {
+            Serial.printf("loop AbschnittLaden_TS\n");
+            lage=AbschnittLaden_TS(CNCDaten[ladeposition]); // erster Wert im Ringbuffer
+            Serial.printf("loop AbschnittLaden_TS end\n");
+
+         }break;
+            
+         default:
+         {
+            Serial.printf("loop AbschnittLaden_TM\n");
+            lage=AbschnittLaden_4M(CNCDaten[ladeposition]); // erster Wert im Ringbuffer
+            Serial.printf("loop AbschnittLaden_TM end\n");
+         }break;
+
+            
+      }// switch
+       
       //    Serial.printf("+++ Erster Abschnitt lage: %d\n",lage);
  //     lage = 2;
       ladeposition++;
