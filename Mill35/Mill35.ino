@@ -1536,12 +1536,12 @@ void loop()
             }
             interrupts();
          }break;
-#pragma mark B4 
-         case 0xB4: // PCB neu: Pfeiltasten
+#pragma mark D4 
+         case 0xD4: // PCB neu: Pfeiltasten
          {
             
          }
-         break; // B4
+         break; // D4
 
             
 #pragma mark B5               
@@ -2731,7 +2731,7 @@ void loop()
 
          }break;
          case 0xDC:
-         case 0xB4:
+         case 0xD4:
          {
             Serial.printf("loop AbschnittLaden_TS\n");
             lage=AbschnittLaden_TS(CNCDaten[ladeposition]); // erster Wert im Ringbuffer
