@@ -62,6 +62,8 @@
 #define MC_RI              7
 #define MC_EN              8
 
+         
+
 // 10,11,12,13: SPI
 
 #define END_A0_PIN         14
@@ -135,7 +137,6 @@
 #define RICHTUNG_C   2
 #define RICHTUNG_D   3
 
-#define HALT_PIN           0
 
 #define COUNT_A            0 // 4      // Motorstatus:   Schritte von Motor A zaehlen
 #define COUNT_B            1 // 5      // Motorstatus:   Schritte von Motor B zaehlen

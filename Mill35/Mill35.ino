@@ -225,9 +225,11 @@ Stepper motor_A(schrittA, richtungA);   //STEP pin =  2, DIR pin = 3
 Stepper motor_B(schrittB, richtungB);   //STEP pin =  9, DIR pin = 10
 Stepper motor_C(schrittC, richtungC);  //STEP pin = 14, DIR pin = 15
 
-int speedA = 1000;
-int speedB = 1000;
-int speedC = 500;
+int speedA = 2200;
+int speedB = speedA;
+int speedC = 2000;
+int AccelerationA = 6400;
+int AccelerationB = AccelerationA;
 
 StepControl controller(10,5000);
 
@@ -1160,6 +1162,8 @@ void setup()
    pinMode(END_C0_PIN, INPUT_PULLUP); // 
    pinMode(END_C1_PIN, INPUT_PULLUP); // 
    
+   pinMode(HALT_PIN, INPUT_PULLUP);
+   
    if (TEST)
    {
       pinMode(OSZI_PULS_A, OUTPUT);
@@ -1175,8 +1179,8 @@ void setup()
    
    //lcd.setCursor(0,0);
    //lcd.print("hallo");
-   delayTimer.begin(delaytimerfunction,timerintervall);
-   delayTimer.priority(0);
+ //  delayTimer.begin(delaytimerfunction,timerintervall);
+ //  delayTimer.priority(0);
    
    //   threads.addThread(thread_func, 1);
    
@@ -1209,19 +1213,19 @@ void setup()
 #  pragma mark TeensyStep setup
    // setup the motors 
    motor_A.setMaxSpeed(speedA);     // steps/s
-   motor_A.setAcceleration(24000); // steps/s^2 
+   motor_A.setAcceleration(AccelerationA); // steps/s^2 
    motor_A.setStepPinPolarity(LOW);
 
    motor_B
      .setMaxSpeed(speedB)       // steps/s
-     .setAcceleration(24000); // steps/s^2 
+     .setAcceleration(AccelerationA); // steps/s^2 
 
 
     
     motor_C
      //.setPullInSpeed(300)      // steps/s     currently deactivated...
      .setMaxSpeed(speedC)       // steps/s
-     .setAcceleration(24000)   // steps/s^2     
+     .setAcceleration(AccelerationA)   // steps/s^2     
      .setStepPinPolarity(LOW); // driver expects active low pulses
 
 
@@ -1236,10 +1240,21 @@ void loop()
 {
    //   Serial.println(steps);
    //   threads.delay(1000);
+   if (digitalRead(HALT_PIN) == 0)
+   {
+      controller.stopAsync();
+      motor_A.setTargetRel(0);
+      motor_B.setTargetRel(0);
     
+      digitalWriteFast(MA_EN,HIGH);
+      digitalWriteFast(MB_EN,HIGH);
+      digitalWriteFast(MC_EN,HIGH);
+      controllerstatus &= ~(1<<RUNNING);
+
+   }
+
    if (sinceblink > 1000) 
-   {  
-     
+   {      
       //scanI2C(100000);
       loopLED++;
       sinceblink = 0;
@@ -1386,6 +1401,7 @@ void loop()
 #pragma mark start_usb
    
    r = usb_rawhid_recv((void*)buffer, 0); // 1.5us
+//   r = RawHID.recv(buffer, 0); 
    code = 0;
    if (r > 0) // 
    {
@@ -2069,6 +2085,7 @@ void loop()
                 */
                // Abschnitt 0 melden
                
+        //       RawHID.send(sendbuffer, 50);
                usb_rawhid_send((void*)sendbuffer, 50);
                
                //               startTimer2();
@@ -2338,10 +2355,17 @@ void loop()
              STEPPERPORT_2 |= (1<<MC_EN); // Pololu OFF
              STEPPERPORT_2 |= (1<<MD_EN); // Pololu OFF
              */
+            
+            controller.stopAsync();
+            motor_A.setTargetRel(0);
+            motor_B.setTargetRel(0);
+            controllerstatus &= ~(1<<RUNNING);
+            
             digitalWriteFast(MA_EN,HIGH);
             digitalWriteFast(MB_EN,HIGH);
             digitalWriteFast(MC_EN,HIGH);
             digitalWriteFast(MD_EN,HIGH);
+            
             //lcd.setCursor(0,1);
             //lcd.print("HALT");
             
