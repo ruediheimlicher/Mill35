@@ -2243,7 +2243,36 @@ void loop()
                
             } // letzter Abschnitt
             
-            
+            // von default:
+            if ((abschnittnummer == 0)&&(endposition)) // endposition ist > 0, weitere daten
+            {
+               
+                  //                   Serial.printf("erster Abschnitt, mehr Abschnitte ladeposition: %d endposition: %d\n",ladeposition,endposition);
+                  //lcd_putc('*');
+                  
+                  sendbuffer[5]=(abschnittnummer & 0xFF00) >> 8;;
+                  sendbuffer[6]=abschnittnummer & 0x00FF;
+                   sendbuffer[8]=ladeposition;
+                  sendbuffer[0]=0xAF; // next
+                  // AF nicht mehr gemeldet             
+                  //             uint8_t senderfolg = usb_rawhid_send((void*)sendbuffer, 50);
+                  //                     Serial.printf("mehr Abschnitte senderfolg; %d\n",senderfolg);
+                  sei();
+                  //  sendbuffer[0]=0x00;
+                  //  sendbuffer[5]=0x00;
+                  //  sendbuffer[6]=0x00;
+                  
+                  
+                
+            }
+            ringbufferstatus &= ~(1<<FIRSTBIT);
+            if (((abschnittnummer ==0 )&&(ringbufferstatus & (1<<LASTBIT)))) 
+            {
+                  //                Serial.printf("abschnittnummer 1\n");
+                  ringbufferstatus &= ~(1<<LASTBIT);
+                  ringbufferstatus |= (1<<STARTBIT);
+             }
+
             
           }break;
 
@@ -2701,16 +2730,13 @@ void loop()
                   
                   if ((abschnittnummer == 0)&&(endposition)) // endposition ist > 0, weitere daten
                   {
-                     {
+                     
                         //                   Serial.printf("erster Abschnitt, mehr Abschnitte ladeposition: %d endposition: %d\n",ladeposition,endposition);
                         //lcd_putc('*');
                         
                         sendbuffer[5]=(abschnittnummer & 0xFF00) >> 8;;
                         sendbuffer[6]=abschnittnummer & 0x00FF;
-                        
-                        
-                        sendbuffer[8]=ladeposition;
-                        
+                         sendbuffer[8]=ladeposition;
                         sendbuffer[0]=0xAF; // next
                         // AF nicht mehr gemeldet             
                         //             uint8_t senderfolg = usb_rawhid_send((void*)sendbuffer, 50);
@@ -2721,7 +2747,7 @@ void loop()
                         //  sendbuffer[6]=0x00;
                         
                         
-                     }  
+                      
                   }
                   
                   ringbufferstatus &= ~(1<<FIRSTBIT);
@@ -2734,15 +2760,11 @@ void loop()
                   
                   // if ((abschnittnummer ==1 )||((abschnittnummer ==0 )&&(ringbufferstatus & (1<<LASTBIT)))) 
                   if (((abschnittnummer ==0 )&&(ringbufferstatus & (1<<LASTBIT)))) 
-                     
                   {
-                     {
                         //                Serial.printf("abschnittnummer 1\n");
                         ringbufferstatus &= ~(1<<LASTBIT);
                         ringbufferstatus |= (1<<STARTBIT);
-                        
-                     }
-                  }
+                   }
                   if (abschnittnummer == 0)
                   {
                      //               startTimer2();
