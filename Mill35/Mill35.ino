@@ -668,6 +668,7 @@ uint8_t  AbschnittLaden_TS(const uint8_t* AbschnittDaten) // 22us
    controller.moveAsync(motor_A, motor_B);
       
    Serial.printf("*********   AbschnittLaden_TS END \n");
+   
    return returnwert;
 
                  
@@ -1319,7 +1320,7 @@ void loop()
             // Wenn StepCounterA jetzt abgelaufen und relevant: next Datenpaket abrufen
             //         if ((StepCounterA == 0 ) && (motorstatus & (1<< COUNT_A)))    // StepCounterA abgelaufen, Motor A ist relevant fuer Stepcount
             
-            sendstatus |= (1<<COUNT_A);
+            //sendstatus |= (1<<COUNT_A);
             Serial.printf("\n abschnittnummer: %d endposition: %d ringbufferstatus: %d sendstatus: %d\n", abschnittnummer, endposition, ringbufferstatus, sendstatus);
             //        Serial.printf("Rampbreite: %d rampendstep: %d",rampbreite, rampendstep);
             
@@ -1348,7 +1349,7 @@ void loop()
             }
             else 
             {
-               
+               sendstatus |= (1<<COUNT_A);
                uint8_t aktuellelage=0;
                aktuelleladeposition=(ladeposition & 0x00FF);
                aktuelleladeposition &= 0x03;
@@ -1358,7 +1359,7 @@ void loop()
                //globalaktuelleladeposition = ladeposition;
                aktuelleladeposition = ladeposition;
                
-               Serial.printf("\tMotor next aktuelleladeposition: %d",aktuelleladeposition);
+               Serial.printf("\tMotor next aktuelleladeposition: %d aktuellelage: %d",aktuelleladeposition,aktuellelage);
                // > verschoben in 'sendstatus-Bearbeitung
                //     aktuellelage = AbschnittLaden_4M(CNCDaten[aktuelleladeposition]);
                //sendstatus = 0;
@@ -1402,7 +1403,7 @@ void loop()
       noInterrupts();
       
       code = buffer[24];
-      Serial.printf("\n----------------------------------->    rawhid_recv start code: %02X\n",code);
+      Serial.printf("\n----------------------------------->    rawhid_recv start code HEX: %02X\n",code);
       Serial.printf("code: %d\n",code);
       usb_recv_counter++;
       //     lcd.setCursor(10,1);
@@ -2183,13 +2184,12 @@ void loop()
             //   Serial.printf("abschnittnummer: *%d*\n",abschnittnummer);
             sendbuffer[5]=(abschnittnummer & 0xFF00) >> 8;;
             sendbuffer[6]=abschnittnummer & 0x00FF;
-            
-            //usb_rawhid_send((void*)sendbuffer, 100);
-            
-            RawHID.send(sendbuffer, 50);
+                        
+            //RawHID.send(sendbuffer, 50);
             
             if (abschnittnummer==0)  // Start
             {
+               RawHID.send(sendbuffer, 50);
                //noInterrupts();
                Serial.printf("D5 abschnittnummer 0 \tbuffer25 lage: %d \t buffer32 device: %d\n",buffer[25],buffer[32]);
                //             Serial.printf("count: %d\n",buffer[22]);
@@ -2230,6 +2230,7 @@ void loop()
             
             if (buffer[25]& 0x02)// letzter Abschnitt
             {
+               RawHID.send(sendbuffer, 50);
                Serial.printf("------------------------ D5  last abschnitt\n");
                ringbufferstatus |= (1<<LASTBIT); // letzter Abschnitt
                if (ringbufferstatus & (1<<FIRSTBIT)) // nur ein Abschnitt
@@ -2244,6 +2245,10 @@ void loop()
             } // letzter Abschnitt
             
             // von default:
+            
+            // Erster Abschnitt, Beim Start naechsten Abschnitt ebenfalls laden, Anfrage an host
+
+            
             if ((abschnittnummer == 0)&&(endposition)) // endposition ist > 0, weitere daten
             {
                
@@ -2268,7 +2273,7 @@ void loop()
             }
             
             
-         }break;
+         }break; // D5
 
             
 #pragma mark                    CA             
@@ -3794,7 +3799,7 @@ void loop()
          if (abschnittnummer == endposition)
          {
             //            Serial.printf("\n****************************************\n");
-                        Serial.printf("\n abschnittnummer = endposition sendstatus <=4 wert: %d  \n",sendstatus);
+            Serial.printf("\n abschnittnummer = endposition sendstatus <=4 wert: %d  \n",sendstatus);
             //            Serial.printf("\n****************************************\n");
          }
          
@@ -3815,7 +3820,7 @@ void loop()
             //uint8_t senderfolg = usb_rawhid_send((void*)sendbuffer, 100);
             RawHID.send(sendbuffer, 50);
             
-            Serial.printf("\nsendstatus \n");
+            //Serial.printf("\nsendstatus \n");
             /*         
              if (abschnittnummer == endposition)
              {
@@ -3837,6 +3842,7 @@ void loop()
                ladeposition++;
                
                AbschnittCounter=0;
+            
             }
             /*
              if (abschnittnummer == endposition)
@@ -3869,6 +3875,8 @@ void loop()
          RawHID.send(sendbuffer, 50);
          sendstatus = 0;
       }
+      
+      
       if ((sendstatus & (1<<COUNT_LAST)) && ((StepCounterA == 0) && (StepCounterB == 0) && (StepCounterB == 0))) // 131
       {
          //        Serial.printf("\t+++   sendstatus last   +++\n");
@@ -3903,7 +3911,7 @@ void loop()
   //       Serial.printf("COUNT_LAST sendstatus senderfolg: %d\n",senderfolg);
          
          Serial.printf("COUNT_LAST\n");
-         RawHID.send(sendbuffer, 50);
+  //       RawHID.send(sendbuffer, 50);
          sendstatus = 0;
       }
       // ladeposition++;
