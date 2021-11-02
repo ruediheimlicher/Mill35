@@ -225,9 +225,9 @@ Stepper motor_A(schrittA, richtungA);   //STEP pin =  2, DIR pin = 3
 Stepper motor_B(schrittB, richtungB);   //STEP pin =  9, DIR pin = 10
 Stepper motor_C(schrittC, richtungC);  //STEP pin = 14, DIR pin = 15
 
-int speedA = 2200;
+int speedA = 2400;
 int speedB = speedA;
-int speedC = 2000;
+int speedC = 3000;
 int AccelerationA = 6400;
 int AccelerationB = AccelerationA;
 
@@ -1834,11 +1834,11 @@ void loop()
             Serial.printf("BA Drillaktion drillstatus new: %d\n",drillstatus);
             if (buffer[25] == 0xFF)
             {
-               Serial.printf("BA Drillaktion fertig\n");
+               Serial.printf("********   ***********   BA Drillaktion fertig\n");
                break;
             }
             
-            sendbuffer[22] = drillstatus;
+            sendbuffer[22] = drillstatus + 1;
             
             uint8_t i=0;
             for(i=0;i<48;i++) // 5 us ohne printf, 10ms mit printf
@@ -1888,7 +1888,7 @@ void loop()
             uint8_t drill_lage = AbschnittLaden_TS(CNCDaten[0]);
             
   //          Serial.printf("BA drill_lage: *%d*\n",drill_lage);
-            
+            RawHID.send(sendbuffer, 50);
             //usb_rawhid_send((void*)sendbuffer, 50);
             Serial.printf("         BA END\n\n");
          }break;
