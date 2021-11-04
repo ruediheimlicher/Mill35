@@ -2090,7 +2090,7 @@ void loop()
             else 
             {
                repeatcounter = 0; // mouseup
-               Serial.printf("***********************     ********     DC repeatcounter 0: %d\n",repeatcounter);
+               Serial.printf("***********************     ********     DC repeatcounter 0: %d mouseup  \n",repeatcounter);
                digitalWriteFast(MA_EN,HIGH);
                digitalWriteFast(MB_EN,HIGH);
                digitalWriteFast(MC_EN,HIGH);
