@@ -146,6 +146,8 @@ volatile uint8_t           usbstatus=0x00;
 static volatile uint8_t    motorstatus=0x00;
 volatile uint8_t           anschlagstatus=0x00;
 
+
+
 volatile int16_t           anschlagcounter = 0;
 
 volatile uint8_t           timerstatus=0;
@@ -225,12 +227,12 @@ Stepper motor_A(schrittA, richtungA);   //STEP pin =  2, DIR pin = 3
 Stepper motor_B(schrittB, richtungB);   //STEP pin =  9, DIR pin = 10
 Stepper motor_C(schrittC, richtungC);  //STEP pin = 14, DIR pin = 15
 
-int speedA = 2200;
+int speedA = 2400;
 int speedB = speedA;
 int speedC = 3000;
-int AccelerationA = 6400;
+int AccelerationA = 6000;
 int AccelerationB = AccelerationA;
-
+int AccelerationC = 6000;
 StepControl controller(10,5000);
 
 int dir = 1;
@@ -1145,6 +1147,21 @@ void A_ISR(void)
 }
 
 
+void C0_ISR(void)
+{
+   digitalWriteFast(MC_EN,HIGH);
+   anschlagstatus |= (1<<END_C0);
+   Serial.printf("* C0_ISR \n") ;
+}
+void C1_ISR(void)
+{
+   digitalWriteFast(MC_EN,HIGH);
+   anschlagstatus |= (1<<END_C1);
+   Serial.printf("* C1_ISR \n") ;
+}
+
+
+
 void setup()
 {
    Serial.begin(9600);
@@ -1191,7 +1208,8 @@ void setup()
    digitalWriteFast(MC_STEP, HIGH); // HI
    digitalWriteFast(MC_RI, HIGH); // HI
    digitalWriteFast(MC_EN, HIGH); // HI
-   
+ 
+  
    // Stepper D
    pinMode(MD_STEP, OUTPUT); // HI
    pinMode(MD_RI, OUTPUT); // HI
@@ -1201,15 +1219,7 @@ void setup()
    digitalWriteFast(MD_RI, HIGH); // HI
    digitalWriteFast(MD_EN, HIGH); // HI
    
-   pinMode(END_A0_PIN, INPUT); // 
-   pinMode(END_A1_PIN, INPUT); // 
-   
-   pinMode(END_B0_PIN, INPUT); // 
-   pinMode(END_B1_PIN, INPUT); // 
-   
-   pinMode(END_C0_PIN, INPUT); // 
-   pinMode(END_C1_PIN, INPUT); // 
-   
+    
    
    pinMode(END_A0_PIN, INPUT_PULLUP); // HI
    pinMode(END_A1_PIN, INPUT_PULLUP); // HI
@@ -1218,6 +1228,9 @@ void setup()
    pinMode(END_C0_PIN, INPUT_PULLUP); // 
    pinMode(END_C1_PIN, INPUT_PULLUP); // 
    
+   attachInterrupt(digitalPinToInterrupt(END_C0_PIN), C0_ISR, FALLING);
+   attachInterrupt(digitalPinToInterrupt(END_C1_PIN), C1_ISR, FALLING);
+
    pinMode(HALT_PIN, INPUT_PULLUP);
    
    if (TEST)
@@ -1281,7 +1294,7 @@ void setup()
     motor_C
      //.setPullInSpeed(300)      // steps/s     currently deactivated...
      .setMaxSpeed(speedC)       // steps/s
-     .setAcceleration(AccelerationA)   // steps/s^2     
+     .setAcceleration(AccelerationC)   // steps/s^2     
      .setStepPinPolarity(LOW); // driver expects active low pulses
 
 
@@ -1372,6 +1385,13 @@ void loop()
             digitalWriteFast(MB_EN,HIGH);
             digitalWriteFast(MC_EN,HIGH);
             controllerstatus &= ~(1<<RUNNING);
+            
+            
+            if (anschlagstatus & (1<<END_C0))
+            {
+               motor_C.setTargetRel(0);
+               anschlagstatus &= ~(1<<END_C0);
+            }
             //repeatcounter = 0;
             // Begin Ringbuffer-Stuff
             // Wenn StepCounterA jetzt abgelaufen und relevant: next Datenpaket abrufen

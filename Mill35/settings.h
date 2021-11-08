@@ -73,7 +73,7 @@
 
 // 18, 19: I2C
 
-#define END_C0_PIN         20           // Anschlagstatus:  Bit fuer Endanschlag bei C0
+#define END_C0_PIN         20           // Anschlagstatus:  PIN fuer Endanschlag bei C0
 #define END_C1_PIN         21  
 
 // neu 3.5:
