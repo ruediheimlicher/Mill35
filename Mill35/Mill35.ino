@@ -1484,10 +1484,15 @@ void loop()
             }
             else 
             {
+               abschnittnummer++;
+               sendbuffer[5]=(abschnittnummer & 0xFF00) >> 8;
+               sendbuffer[6]=abschnittnummer & 0x00FF;
+
                sendstatus |= (1<<COUNT_A);
                uint8_t aktuellelage=0;
                aktuelleladeposition=(ladeposition & 0x00FF);
                aktuelleladeposition &= 0x03;
+               
                
                // aktuellen Abschnitt laden
                aktuellelage = CNCDaten[aktuelleladeposition][25];
@@ -2321,7 +2326,7 @@ void loop()
             Serial.printf("***   D5 Device: %d* D5 code: %d\n",device,D5code);
             
             sendbuffer[0]=0xD6;
-            sendbuffer[0]=0xA1;
+         //   sendbuffer[0]=0xA1;
             
             uint8_t i=0;
             for(i=0;i<48;i++) // 5 us ohne printf, 10ms mit printf
@@ -2331,9 +2336,7 @@ void loop()
             }
             sendbuffer[24] =  buffer[32];
             
-            
-            
-            uint8_t indexh=buffer[26];
+             uint8_t indexh=buffer[26];
             uint8_t indexl=buffer[27];
             //   Serial.printf("indexh: %d indexl: %d\n",indexh,indexl);
             abschnittnummer= indexh<<8;
@@ -3241,7 +3244,7 @@ void loop()
    {
       //noInterrupts();
       
-      Serial.printf("\n                 Abschnitt 0 laden ringbufferstatus: %d\n",ringbufferstatus);
+      Serial.printf("\n     Startbit da            Abschnitt 0 laden ringbufferstatus: %d\n",ringbufferstatus);
       ringbufferstatus &= ~(1<<STARTBIT);  // Startbit entfernen      
       ladeposition=0;  // laufender Zaehler fuer Ringbuffer, gefiltert mit Ringbuffertiefe
       AbschnittCounter=0;
@@ -3256,7 +3259,7 @@ void loop()
       
        for(i=0;i<48;i++)
        {
- //      Serial.printf("%d\t",CNCDaten[ladeposition][i]);
+       Serial.printf("%d\t",CNCDaten[ladeposition][i]);
        }
       Serial.printf("\n");
       switch (code)
