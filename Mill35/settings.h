@@ -15,36 +15,6 @@
 // Stepper A
 
 
-// neu 200730
-/*
- #define MA_STEP   0
- #define MA_RI   1
- #define MB_STEP   2
- #define MB_RI   3
- #define MAB_EN   4
- #define MA_EN           4
- #define MB_EN           23
- #define END_A0_PIN   5
- #define END_A1_PIN   6
- #define END_B0_PIN   7
- #define END_B1_PIN   8
- 
- 
- #define MC_STEP   14
- #define MC_RI   15
- #define MC_EN   16
- */
-/*
- 
- // 18, 19: I2C   
- 
- #define END_C0_PIN   20
- #define END_C1_PIN   21
- 
- #define STROM   22
- #define DC_PWM   23
- 
- */
 //Pins 3.5
 
 #define MA_STEP           0
@@ -77,8 +47,8 @@
 #define END_C1_PIN         21  
 
 // neu 3.5:
-#define STROM              22
-#define DC_PWM             23
+#define STROM_PIN             24
+#define DC_PWM_PIN            35
 
 // Tastatur
 #define UP_PIN             24
@@ -91,11 +61,12 @@
 
 #define HALT_PIN           30
 
+/*
 #define MD_STEP            33           // PIN auf Stepperport 2
 #define MD_RI              34
 #define MD_EN              35
 #define END_D0_PIN         36           // Anschlagstatus:  Bit fuer Endanschlag bei D0
-
+*/
 
 
 
@@ -125,7 +96,9 @@
 #define END_C0          4      //  Bit fuer Endanschlag C0 
 #define END_C1          5       //  Bit fuer Endanschlag C1 
 
-#define END_D0          7       //           Endanschlag D0 
+#define HOME_A0          7       //  Home A
+#define HOME_B0          8
+
 
 #define FIRSTRUN          7
 
@@ -150,8 +123,6 @@
 
 #define TIMER_ON           1 // Bit fuer timerfunktion start
 
-#define DC                  7    // DC ON: LO
-#define STROM               4    // Stepperstrom ON: HI
 
 #define GO_HOME            3     // Bit fuer befehl beginn home auf cncstatus
 #define DC_DIVIDER         1      // teilt die pwm-Frequenz in ISR
@@ -171,8 +142,8 @@
 #define FIRSTBIT           7
 
 
-#define OSZI_PULS_A        8
-#define OSZI_PULS_B        9
+#define OSZI_PULS_A        24
+#define OSZI_PULS_B        25
 
 
 #define THREAD_COUNT_BIT   0
