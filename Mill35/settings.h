@@ -135,7 +135,7 @@
 #define READYBIT           0        // buffer kann Daten aufnehmen
 #define FULLBIT            1        // Buffer ist voll
 #define STARTBIT           2        // Buffer ist geladen
-#define RINGBUFFERBIT      3        // Ringbuffer wird verwendet
+#define INNERBIT           3        // Ringbuffer wird verwendet
 #define LASTBIT            4        // Letzter Abschnitt  ist geladen
 #define ENDBIT             5        // Letzter Abschnitt  ist abgearbeitet
 #define STOPBIT            6        // Ablauf stoppen
