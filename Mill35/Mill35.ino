@@ -94,8 +94,11 @@ elapsedMillis sincelastthread;
 
 // Prototypes
 
-static volatile uint8_t buffer[USB_DATENBREITE]={};
-static volatile uint8_t sendbuffer[USB_DATENBREITE]={};
+static volatile uint8_t buffer[USB_DATENBREITE]={};   // Daten von usb
+static volatile uint8_t sendbuffer[USB_DATENBREITE]={};// Daten nach usb
+
+static volatile uint8_t drillbuffer[USB_DATENBREITE]={};// Daten fuer Drill, beim Start geladen
+
 
 // Ringbuffer
 uint8_t                    CNCDaten[RINGBUFFERTIEFE][USB_DATENBREITE];
