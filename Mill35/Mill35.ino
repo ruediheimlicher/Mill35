@@ -84,7 +84,7 @@ volatile uint16_t          cnc_recv_counter=0;
 
 elapsedMillis sinceblink;
 elapsedMillis sincelcd;
-elapsedMillis sinceusb;
+elapsedMicros sinceusb;
 
 elapsedMillis sinceload; // Zeitdauer der Anzeige des Potentialwertes
 
@@ -240,7 +240,7 @@ Stepper motor_C(schrittC, richtungC);  //STEP pin = 14, DIR pin = 15
 
 int speedA = 2400;
 int speedB = speedA;
-int speedC = 3000;
+int speedC = 2400;
 int AccelerationA = 6000;
 int AccelerationB = AccelerationA;
 int AccelerationC = 6000;
@@ -698,14 +698,14 @@ uint8_t  AbschnittLaden_TS(const uint8_t* AbschnittDaten) // 22us
       //STEPPERPORT_2 |= (1<< MC_RI);
 //      digitalWriteFast(MC_RI,HIGH);
    }
-   Serial.printf("StepCounterA: %d StepCounterB: %d StepCounterC: %d\n",StepCounterA,StepCounterB,StepCounterC);
+   //Serial.printf("StepCounterA: %d StepCounterB: %d StepCounterC: %d\n",StepCounterA,StepCounterB,StepCounterC);
   
    uint32_t dA = StepCounterA;
    uint32_t dB = StepCounterB;
    uint32_t dC = StepCounterC;
    
    
- //  Serial.printf("da: %d dB: %d dC: %d\n",dA,dB,dC);
+   Serial.printf("da: %d dB: %d dC: %d\n",dA,dB,dC);
    motor_A.setTargetRel(dA);
    motor_B.setTargetRel(dB);
    if (dC == 0)
@@ -1363,7 +1363,7 @@ void loop()
       {
         // digitalWriteFast(STROM_PIN,1);
          //analogWrite(23,77);
-         //Serial.printf("LED ON\n");
+         Serial.printf("LED ON\n");
          digitalWriteFast(LOOPLED, 0);
          /*
           //Serial.printf("blink\t %d\n",loopLED);
@@ -1384,6 +1384,7 @@ void loop()
       }
       else
       {
+         Serial.printf("LED OFF\n");
          digitalWriteFast(LOOPLED, 1);
          //digitalWriteFast(STROM_PIN,1);
       }
@@ -1410,7 +1411,7 @@ void loop()
          if (controllerstatus & (1<<RUNNING)) // Running gerade beendet
          {
             //Serial.printf("motor finished \t\t\t START code: %d\n",code);
-            
+            Serial.printf("motor finished\n");
             //digitalWriteFast(DC_PWM_PIN, 0);
             
             uint8_t ri = digitalReadFast(MA_RI);
@@ -1427,7 +1428,7 @@ void loop()
             digitalWriteFast(MC_EN,HIGH);
             controllerstatus &= ~(1<<RUNNING);
             
-            
+            /*
             if (anschlagstatus & (1<<END_C0))
             {
                motor_C.setTargetRel(0);
@@ -1453,7 +1454,7 @@ void loop()
            //    anschlagstatus |= (1<<HOME_A0);
                
              }
-            
+            */
             sendstatus = 0; 
             //Serial.printf("\t abschnittnummer: %d endposition: %d ringbufferstatus: %d ladeposition: %d sendstatus: %d", abschnittnummer, endposition, ringbufferstatus, ladeposition, sendstatus);
             
@@ -1469,17 +1470,19 @@ void loop()
                cncstatus=0;
                //         motorstatus=0;
               //         sendbuffer[0]=0xAD;
+               /*
                sendbuffer[5]=(abschnittnummer & 0xFF00) >> 8;
                sendbuffer[6]=abschnittnummer & 0x00FF;
                sendbuffer[7]=(ladeposition & 0xFF00) >> 8;
                sendbuffer[8]=ladeposition & 0x00FF;
-
+*/
                ladeposition=0;
                interrupts();
             }
             else 
             {
                abschnittnummer++;
+               
                sendbuffer[5]=(abschnittnummer & 0xFF00) >> 8;
                sendbuffer[6]=abschnittnummer & 0x00FF;
                sendbuffer[7]=(ladeposition & 0xFF00) >> 8;
@@ -1487,21 +1490,21 @@ void loop()
 
                sendstatus |= (1<<COUNT_A);
    //            uint8_t aktuellelage=0;
-               Serial.printf("motor finished \t\t aktuelleladeposition A: %d\n",aktuelleladeposition);
+               //Serial.printf("motor finished \t\t aktuelleladeposition A: %d\n",aktuelleladeposition);
                aktuelleladeposition=(ladeposition & 0x00FF);
-               Serial.printf("motor finished \t\t aktuelleladeposition B: %d\n",aktuelleladeposition);
+               //Serial.printf("motor finished \t\t aktuelleladeposition B: %d\n",aktuelleladeposition);
 
                aktuelleladeposition &= 0x03;
-               Serial.printf("motor finished \t\t aktuelleladeposition C: %d\n",aktuelleladeposition);
+               //Serial.printf("motor finished \t\t aktuelleladeposition C: %d\n",aktuelleladeposition);
 
                // aktuellen Abschnitt laden
-               Serial.printf("motor finished \t\t aktuellelage A: %d\n",aktuellelage);
-               aktuellelage = CNCDaten[aktuelleladeposition][25];
-               Serial.printf("motor finished \t\t aktuellelage B: %d\n",aktuellelage);
+               //Serial.printf("motor finished \t\t aktuellelage A: %d\n",aktuellelage);
+               aktuellelage = CNCDaten[0][25];
+               //Serial.printf("motor finished \t\t aktuellelage B: %d\n",aktuellelage);
 
                //globalaktuelleladeposition = ladeposition;
                aktuelleladeposition = ladeposition;
-               Serial.printf("motor finished \t\t aktuelleladeposition D: %d\n",aktuelleladeposition);
+               //Serial.printf("motor finished \t\t aktuelleladeposition D: %d\n",aktuelleladeposition);
               
                
                //Serial.printf("\tMotor next aktuelleladeposition: %d aktuellelage: %d",aktuelleladeposition,aktuellelage);
@@ -1550,6 +1553,9 @@ void loop()
 #pragma mark start_usb
    
 //   r = usb_rawhid_recv((void*)buffer, 0); // 1.5us
+if (sinceusb > 100)   
+{
+   sinceusb = 0;
    r = RawHID.recv(buffer, 0); 
    code = 0;
    if (r > 0) // 
@@ -1635,7 +1641,7 @@ void loop()
 #pragma mark D4 
          case 0xD4: // PCB neu: Pfeiltasten
          {
-            
+            Serial.printf("***  D4"); 
          }
          break; // D4
 
@@ -1741,7 +1747,7 @@ void loop()
             abschnittnummer= indexh<<8;
             abschnittnummer += indexl;
             Serial.printf("BA abschnittnummer: *%d*\n",abschnittnummer);
-            drillstatus = buffer[33];
+            drillstatus = buffer[35];
             Serial.printf("B7 Drillaktion drillstatus new: %d\n",drillstatus);
 
             drillstatus = 0xA0; // keine rueckweg
@@ -1800,7 +1806,7 @@ void loop()
             }
            
             
-            drillstatus = buffer[33]; // 0:begin 
+            drillstatus = buffer[35]; // 0:begin 
             uint8_t pfeiltag = buffer[38];
             //Serial.printf("BA Drillaktion drillstatus new: %d pfeiltag: %d\n",drillstatus,pfeiltag);
             
@@ -2019,7 +2025,7 @@ void loop()
 #pragma mark   DE            Pfeiltaste      TeensyStep           
          case 0xDE:
          {
-            //Serial.printf("* DE TeensyStep code: %d Device: %d* repeatcounter: %d \n",code, device,repeatcounter);
+            Serial.printf("* DE TeensyStep code: %d Device: %d* repeatcounter: %d \n",code, device,repeatcounter);
             uint8_t i=0;
             for(i=0;i<48;i++) // 5 us ohne printf, 10ms mit printf
             { 
@@ -2044,11 +2050,27 @@ void loop()
             uint8_t lage = buffer[25];
             
             uint8_t mausstatus = buffer[40];
+            
+            /*
+            if (mausstatus & (1<<2))
+            {
+               repeatcounter = 0;
+               Serial.printf("DE **********  **********    ********     mausstatus bit 2\n");
+               for(i=0;i<64;i++) // 5 us ohne printf, 10ms mit printf
+               { 
+                  //                 Serial.printf("%d \t",buffer[i]);
+                  CNCDaten[0][i]=buffer[i];  
+               }
+
+            }
+
+            */
+           
             if (mausstatus & (1<<1)) // bit gesetzt
             {
                repeatcounter++;
             }
-            else 
+             else
             {
                repeatcounter = 0; // mouseup
                //Serial.printf("***********************     ********     DC repeatcounter 0: %d mouseup  \n",repeatcounter);
@@ -2789,7 +2811,7 @@ void loop()
                         
                         sendbuffer[5]=(abschnittnummer & 0xFF00) >> 8;;
                         sendbuffer[6]=abschnittnummer & 0x00FF;
-                         sendbuffer[8]=ladeposition;
+                        sendbuffer[8]=ladeposition;
                         sendbuffer[0]=0xAF; // next
                         // AF nicht mehr gemeldet             
                         //             uint8_t senderfolg = usb_rawhid_send((void*)sendbuffer, 50);
@@ -2943,6 +2965,7 @@ void loop()
    }// r > 0
    /**   End USB-routinen   ***********************/
  
+} // since usb
    
 #pragma mark sendstatus
    //if (sendstatus >= 3)
@@ -2951,7 +2974,7 @@ void loop()
    if (sendstatus > 0)
    {
       sendbuffer[9] = sendstatus;
-      Serial.printf("\nsendstatus > 0: %d",sendstatus);
+      //Serial.printf("\nsendstatus > 0: %d",sendstatus);
       //Serial.printf("\n++++++++++++++++++++++++++++++\nsendstatus: %d abschnittnummer: %d endposition: %d globalaktuelleladeposition: %d: StepCounterA: %d StepCounterB: %d\n", sendstatus,abschnittnummer,endposition,globalaktuelleladeposition,StepCounterA, StepCounterB);
       //     Serial.printf("\n++++++++++++++++++++++++++++++\nsendstatus: %d abschnittnummer: %d endposition: %d aktuelleladeposition: %d: StepCounterA: %d StepCounterB: %d\n", sendstatus,abschnittnummer,endposition,aktuelleladeposition,StepCounterA, StepCounterB);
       
@@ -3119,7 +3142,7 @@ void loop()
          
          sendbuffer[32] = drillstatus;
          
-         sendbuffer[33] = tabledatastatus;
+         sendbuffer[35] = tabledatastatus;
       
          //sendbuffer[7]=(ladeposition & 0xFF00) >> 8;
   //       uint8_t senderfolg = usb_rawhid_send((void*)sendbuffer, 100);
