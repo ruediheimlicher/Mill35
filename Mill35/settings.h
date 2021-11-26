@@ -51,6 +51,9 @@
 #define DC_PWM_PIN            35
 
 // Tastatur
+
+#define ANALOGTASTATUR     22
+
 #define UP_PIN             24
 #define DOWN_PIN           25
 #define LEFT_PIN           26
@@ -75,6 +78,33 @@
 #define TASTE0            0   // HALT-Bit Motor A
 #define TASTE1            1
 
+/*
+#define TASTE1 38
+#define TASTE2 46
+#define TASTE3 54
+#define TASTE4 72
+#define TASTE5 95
+#define TASTE6 115
+#define TASTE7 155
+#define TASTE8 186
+#define TASTE9 205
+#define TASTEL 225
+#define TASTE0 235
+#define TASTER 245
+*/
+
+#define TASTE1     67
+#define TASTE2     109
+#define TASTE3     163
+#define TASTE4     253
+#define TASTE5     360
+#define TASTE6     484
+#define TASTE7     628
+#define TASTE8     742
+#define TASTE9     827
+#define TASTEL     899
+#define TASTE0     946
+#define TASTER     993
 
 
 

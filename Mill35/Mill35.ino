@@ -46,7 +46,7 @@
 // !!! Help: http://bit.ly/2AdU7cu
 #include "Arduino.h"
 #include "TeensyStep.h"
-
+#include <ADC.h>
 #include "gpio_MCP23S17.h"
 #include <SPI.h>
 #include "lcd.h"
@@ -269,8 +269,198 @@ volatile uint8_t    repeatcounter=0; // anzahl repeats
 #define REPEATING   2
 #define STOP      3
 // end TeensyStep
+// right
+uint8_t pfeil1[] = {200,20, 0, 0, 57, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 222, 2, 0, 0, 1, 77, 0, 128, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+// down
+uint8_t pfeil2[] = {0, 0, 0, 0, 0, 0, 0, 0, 200, 20, 0, 0, 0, 0, 206, 137, 0, 0, 0, 0, 0, 0, 0, 0, 222, 2, 0, 0, 2, 77, 0, 128, 1, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+// left
+uint8_t pfeil3[] = {206, 20, 0, 128, 57, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 222, 2, 0, 0, 1, 77, 0, 128, 1, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 2, 0, 0, 0, 0};
+// up
+uint8_t pfeil4[] = {0, 0, 0, 0, 0, 0, 0, 0, 206, 20, 0, 128, 0, 0, 206, 137, 0, 0, 0, 0, 0, 0, 0, 0, 222, 2, 0, 0, 2, 77, 0, 128, 1, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+
+uint8_t drillup[] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 206, 10, 0, 0, 0, 0, 0, 0, 222, 2, 0, 0, 4, 77, 0, 128, 1, 0, 0, 0, 0, 0, 22, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+uint8_t drilldown[] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 206, 10, 0, 128, 0, 0, 0, 0, 222, 2, 0, 0, 4, 77, 0, 128, 1, 0, 0, 0, 0, 0, 24, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+
+uint8_t pfeilarray[4] = {pfeil1,pfeil2,pfeil3,pfeil4};
+
+uint16_t taste = 0xFF;
+uint8_t tastencounter = 0;
+uint8_t TastaturCount=0;
+uint8_t Taste=0;
+uint8_t analogtastaturstatus = 0;
+#define TASTE_OFF  0
+#define TASTE_ON  1
+
+uint16_t TastenStatus=0;
+uint16_t Tastenprellen=0x1F;
 
 
+ADC *adc = new ADC(); // adc object
+
+#  pragma mark Ganssle setup
+// Ganssle von Netzteil_20
+typedef struct
+{
+   uint8_t pin;
+   uint16_t tasten_history;
+   uint8_t pressed;
+   long lastDebounceTime;
+}tastenstatus;
+
+//long lastDebounceTime = 0;  // the last time the output pin was toggled
+long debounceDelay = 20;    // the debounce time; increase if the output flickers
+volatile uint8_t tipptastenstatus = 0;
+tastenstatus tastenstatusarray[8] = {}; 
+
+uint8_t tastenbitstatus = 0; // bits fuer tasten
+
+volatile uint8_t tastencode = 0; // status der Tasten vom SPI-SR
+
+// http://www.ganssle.com/debouncing-pt2.htm
+#define MAX_CHECKS 8
+volatile uint8_t last_debounced_state = 0;
+volatile uint8_t debounced_state = 0;
+volatile uint8_t state[MAX_CHECKS] = {0};
+
+volatile uint8_t debounceindex = 0;
+void debounce_switch(uint8_t port)
+{
+   uint8_t i,j;
+   state[debounceindex] = port;
+   ++debounceindex;
+   j = 0xFF;
+   for (i=0;i<MAX_CHECKS;i++)
+   {
+      j=j & state[i];
+   }
+   debounced_state = j;
+   
+   if (debounceindex >= MAX_CHECKS)
+   {
+      debounceindex = 0;
+   }
+   
+}
+
+// Elliot https://hackaday.com/2015/12/10/embed-with-elliot-debounce-your-noisy-buttons-part-ii/
+uint8_t readTaste(uint8_t taste)
+{
+   
+   return (digitalReadFast(taste) == 0);
+}
+
+void update_button(uint8_t taste, uint16_t *button_history)
+{
+   *button_history = *button_history << 1;
+   *button_history |= readTaste(taste); 
+}
+
+uint8_t is_button_pressed(uint8_t button_history)
+{
+   return (button_history == 0b01111111);
+}
+
+uint8_t is_button_released(uint8_t button_history)
+{
+   return (button_history == 0b10000000);
+}
+
+uint8_t is_button_down(uint8_t *button_history)
+{
+        return (*button_history == 0b11111111);
+}
+uint8_t is_button_up(uint8_t *button_history)
+{
+        return (*button_history == 0b00000000);
+}
+uint8_t test_for_press_only(uint8_t pin)
+{   
+   static uint16_t button_history = 0;
+   uint8_t pressed = 0;    
+   
+   button_history = button_history << 1;
+   button_history |= readTaste(pin);
+   if ((button_history & 0b11000111) == 0b00000111)
+   { 
+      pressed = 1;
+      button_history = 0b11111111;
+   }
+   return pressed;
+}
+
+// end Elliot
+
+
+uint8_t checktasten(void)
+{
+   uint8_t count = 0; // Anzahl aktivierter Tasten
+   uint8_t i=0;
+   uint8_t tastencode = 0;
+   while (i<8)
+   {
+      uint8_t pressed = 0;
+      if (tastenstatusarray[i].pin < 0xFF)
+      {
+         count++;
+         tastenstatusarray[i].tasten_history = (tastenstatusarray[i].tasten_history << 1);
+         tastenstatusarray[i].tasten_history |= readTaste(tastenstatusarray[i].pin); // pin-nummer von element i
+         if ((tastenstatusarray[i].tasten_history & 0b11000111) == 0b00000111)
+         {
+            pressed = 1;
+            tipptastenstatus |= (1<<i);
+            tastenbitstatus |= (1<<i);
+            tastenstatusarray[i].tasten_history = 0b11111111;
+            tastenstatusarray[i].pressed = pressed;
+         }
+         
+      }// i < 0xFF
+      
+      i++;
+   }
+   // tastenstatusarray
+   //return tastencode;
+   return tipptastenstatus ;
+}
+
+/*
+uint8_t checkSPItasten() // MCP23S17 abrufen // Takt ca. 300us
+{
+   uint8_t count = 0; // Anzahl aktivierter Tasten
+   uint8_t i=0;
+   //uint8_t tastencode = 0;
+   uint8_t check=0;
+   //digitalWriteFast(OSZIB,LOW); // 
+   //tastencode = 0xFF - mcp0.gpioReadPortB(); // 8 us active taste ist LO > invertieren
+     
+   //digitalWriteFast(OSZIB,HIGH);
+   //digitalWriteFast(OSZIB,LOW);
+   while (i<8) // 1us
+   {
+      uint8_t pressed = 0;
+      if (tastenstatusarray[i].pin < 0xFF)
+      {
+         count++;
+         tastenstatusarray[i].tasten_history = tastenstatusarray[i].tasten_history << 1;
+      
+         uint8_t pinnummer = tastenstatusarray[i].pin;
+         tastenstatusarray[i].tasten_history |= ((tastencode & (1<<pinnummer)) > 0);
+         if ((tastenstatusarray[i].tasten_history & 0b11000111) == 0b00000111)
+         {
+            pressed = 1;
+            SPItastenstatus |= (1<<i);
+            tastenbitstatus |= (1<<i);
+            tastenstatusarray[i].tasten_history = 0b11111111;
+            tastenstatusarray[i].pressed = pressed;
+         }
+      }// i < 0xFF
+      i++;
+   }
+   //controllooperrcounterD = count;
+   //digitalWriteFast(OSZIB,HIGH); // 9us
+   return SPItastenstatus ;
+}
+*/
+ // end Ganssle  
 // Functions
 
 void OSZI_A_LO(void)
@@ -303,8 +493,38 @@ void OSZI_B_HI(void)
       digitalWriteFast(OSZI_PULS_B,HIGH);
 }
 
+uint8_t Menu_Ebene=0;
 
-
+uint8_t Tastenwahl(uint16_t Tastaturwert)
+{
+   if (Tastaturwert < TASTE1)
+      return 1;
+   if (Tastaturwert < TASTE2)
+      return 2;
+   if (Tastaturwert < TASTE3)
+      return 3;
+   if (Tastaturwert < TASTE4)
+      return 4;
+   if (Tastaturwert < TASTE5)
+      return 5;
+   if (Tastaturwert < TASTE6)
+      return 6;
+   if (Tastaturwert < TASTE7)
+      return 7;
+   if (Tastaturwert < TASTE8)
+      return 8;
+   if (Tastaturwert < TASTE9)
+      return 9;
+   if (Tastaturwert < TASTEL)
+      return 10;
+   if (Tastaturwert < TASTE0)
+      return 0;
+   if (Tastaturwert < TASTER)
+      return 12;
+   
+   return 0;
+}
+ // tastenwahl
 void startTimer2(void)
 {
    timerstatus |= (1<<TIMER_ON);
@@ -483,7 +703,7 @@ uint8_t  RepeatAbschnittLaden_TS(const uint8_t* AbschnittDaten) // 22us
    {
       returnwert=2;
    }
-   Serial.printf("RepeatAbschnittDaten_TS returnwert: %d\n",returnwert);
+   //Serial.printf("RepeatAbschnittDaten_TS returnwert: %d\n",returnwert);
    StepCounterA = AbschnittDaten[0] | (AbschnittDaten[1]<<8) | (AbschnittDaten[2]<<16) | ((AbschnittDaten[3] & 0x7F)<<24);
     // Vorzeichen bestimmen
    if ((AbschnittDaten[3] & 0x80) > 0)
@@ -495,7 +715,7 @@ uint8_t  RepeatAbschnittLaden_TS(const uint8_t* AbschnittDaten) // 22us
    {
       //Serial.printf("StepCounterA: Vorzeichen positiv\n");
    }
-   Serial.printf("StepCounterA mit VZ: %d\n",StepCounterA);
+   //Serial.printf("StepCounterA mit VZ: %d\n",StepCounterA);
    StepCounterB = AbschnittDaten[8] | (AbschnittDaten[9]<<8) | (AbschnittDaten[10]<<16) | ((AbschnittDaten[11] & 0x7F)<<24);
    //Serial.printf("StepCounterB: %d \n",StepCounterB);
    // Vorzeichen bestimmen
@@ -543,18 +763,18 @@ uint8_t  RepeatAbschnittLaden_TS(const uint8_t* AbschnittDaten) // 22us
    if (repeatcounter == 1) // Start
    {
       
-      Serial.printf("repeatcounter ist 1: %d\n",repeatcounter);
+      //Serial.printf("repeatcounter ist 1: %d\n",repeatcounter);
       //   if ((digitalReadFast(END_A0_PIN)) &&  (digitalReadFast(END_A1_PIN)))
       if (dC == 0)
       {
          if ((digitalReadFast(END_A0_PIN)) &&  (digitalReadFast(END_A1_PIN)))
          {
-            Serial.printf("Motor A Alles offen\n");
+            //Serial.printf("Motor A Alles offen\n");
             digitalWriteFast(MA_EN,LOW);
          }
          if ((digitalReadFast(END_B0_PIN)) &&  (digitalReadFast(END_B1_PIN)))
          {
-            Serial.printf("Motor B Alles offen\n");
+            //Serial.printf("Motor B Alles offen\n");
             digitalWriteFast(MB_EN,LOW);
          }
       }
@@ -565,7 +785,7 @@ uint8_t  RepeatAbschnittLaden_TS(const uint8_t* AbschnittDaten) // 22us
 
          motor_C.setTargetRel(dC);
          digitalWriteFast(MC_EN,LOW);
-         Serial.printf("*** repeatAbschnittLaden_TS ist 1 Motor C GO\n"); 
+         //Serial.printf("*** repeatAbschnittLaden_TS ist 1 Motor C GO\n"); 
       }
       
       
@@ -584,7 +804,7 @@ uint8_t  RepeatAbschnittLaden_TS(const uint8_t* AbschnittDaten) // 22us
       controllerstatus |= (1<<STOP);
 
    }
-   Serial.printf("RepeatAbschnittDaten_TS End\n");
+   //Serial.printf("RepeatAbschnittDaten_TS End\n");
    startTimer2();
    return returnwert;
    
@@ -836,7 +1056,7 @@ uint8_t  AbschnittLaden_4M(const uint8_t* AbschnittDaten) // 22us
    //uint32_t a  = AbschnittDaten[0] + (AbschnittDaten[1]<<8) + (AbschnittDaten[2]<<16) + ((AbschnittDaten[3] & 0x7F)<<24);
    //Serial.printf("l: %d\n",a);
    DelayA = AbschnittDaten[4] | ((AbschnittDaten[5] & 0x7F)<<8) ;
-   Serial.printf("StepCounterA: %d DelayA: %d\n",StepCounterA,DelayA);
+   //Serial.printf("StepCounterA: %d DelayA: %d\n",StepCounterA,DelayA);
    
    //Serial.printf("AbschnittDaten 6: %d AbschnittDaten 7: %d\n",AbschnittDaten[6], AbschnittDaten[7]);
    korrekturintervallx = AbschnittDaten[6] | ((AbschnittDaten[7] & 0x7F)<<8);
@@ -933,7 +1153,7 @@ uint8_t  AbschnittLaden_4M(const uint8_t* AbschnittDaten) // 22us
    
    StepCounterB = AbschnittDaten[8] | (AbschnittDaten[9]<<8) | (AbschnittDaten[10]<<16) | ((AbschnittDaten[11] & 0x7F)<<24);
    DelayB= AbschnittDaten[12] | ((AbschnittDaten[13]& 0x7F) <<8);
-   Serial.printf("***   StepCounterB: %d DelayB: %d\n",StepCounterB,DelayB);
+   //Serial.printf("***   StepCounterB: %d DelayB: %d\n",StepCounterB,DelayB);
    
    korrekturintervally = AbschnittDaten[14] | ((AbschnittDaten[15] & 0x7F)<<8);
    //korrekturintervally = 0;
@@ -1048,7 +1268,7 @@ uint8_t  AbschnittLaden_4M(const uint8_t* AbschnittDaten) // 22us
     */
    // motorstatus: welcher Motor ist relevant
    motorstatus = AbschnittDaten[28];
-   Serial.printf("*** Abschnittladen motorstatus: %d\n",motorstatus); 
+   //Serial.printf("*** Abschnittladen motorstatus: %d\n",motorstatus); 
    
    if (motorstatus > 3)
    {
@@ -1107,6 +1327,268 @@ gpio_MCP23S17     mcp0(10,0x20);//instance 0 (address A0,A1,A2 tied to 0)
 // Add setup code
 
 
+void tastenfunktion(uint16_t Tastenwert)
+{
+   if (Tastenwert>23) // ca Minimalwert der Matrix
+   {
+      //         wdt_reset();
+      /*
+       0: Wochenplaninit
+       1: IOW 8* 2 Bytes auf Bus laden
+       2: Menu der aktuellen Ebene nach oben
+       3: IOW 2 Bytes vom Bus in Reg laden
+       4: Auf aktueller Ebene nach rechts (Heizung: Vortag lesen und anzeigen)                           
+       5: Ebene tiefer
+       6: Auf aktueller Ebene nach links (Heizung: Folgetag lesen und anzeigen)                           
+       7: 
+       8: Menu der aktuellen Ebene nach unten
+       9: DCF77 lesen
+       
+       12: Ebene höher
+       */
+      TastaturCount++;
+      if (TastaturCount>=40)   //   Prellen
+      {
+         TastaturCount=0x00;
+         if (analogtastaturstatus & (1<<TASTE_ON)) // 
+         {
+            
+         }
+         else 
+         {
+            
+            analogtastaturstatus |= (1<<TASTE_ON);
+            
+            Taste=Tastenwahl(Tastenwert);
+            Serial.printf("Tastenwert: %d Taste: %d \n",Taste,Tastenwert);
+            TastaturCount=0;
+            Tastenwert=0x00;
+            
+            uint8_t inBytes[4]={};
+            
+            switch (Taste)
+            {
+               case 0://
+               { 
+                  break;
+                  // Blinken auf C2
+                  
+               }
+                  break;
+                  
+                  
+               case 1: 
+               {
+                 
+               }
+                  break;
+                  
+               case 2:     // up                             //   Menu vorwaertsschalten   
+               {
+                  uint8_t lage = AbschnittLaden_TS(pfeil4);
+                  switch (Menu_Ebene & 0xF0)               //   Bits 7-4, Menu_Ebene
+                  {
+                     case 0x00:                        //   oberste Ebene, Raeume
+                     {
+                        
+                     }
+                        break;
+                        
+                     case 0x10:                        // erste Unterebene, Thema
+                     {
+                     }
+                        break;
+                     case    0x20:                        // zweite Unterebene
+                     {
+                        
+                     }break;
+                  }//switch Menu_Ebene
+                  
+               }
+                  break;
+                  
+               case 3:   //
+               {
+                  uint8_t lage = AbschnittLaden_TS(drillup);
+               }break;
+                  
+               case 4:   // left
+               {
+                  uint8_t lage = AbschnittLaden_TS(pfeil3);
+                  switch (Menu_Ebene & 0xF0)//Bits 7-4   
+                  {
+                     case 0x00:   //oberste Ebene
+                     {
+                        //err_clr_line(0);
+                        //err_puts("E0\0");
+                        
+                     }break;
+                        
+                     case 0x10: // erste Ebene
+                     {
+                        
+                        
+                     }break;
+                        
+                     case 0x20: // zweite Ebene, Plan
+                     {
+                     }break;   //   case 0x20
+                        
+                        
+                  }//switch Menu_Ebene & 0xF0
+                  
+               } break; // case Vortag
+                  
+                  
+               case 5:                        // Ebene tiefer
+               {
+                  if ((Menu_Ebene & 0xF0)<0x20)
+                  {
+                     switch (Menu_Ebene & 0xF0)
+                     {
+                        case 0x00: // erste Ebene, Thema
+                        {
+                           Menu_Ebene = 0x10;
+                        }break;
+                           
+                        case 0x10:
+                        {
+                           Menu_Ebene = 0x20;
+                        }break;
+                           
+                     }//switch Menu_Ebene
+                     
+                     
+                     
+                  }
+               }            break;
+                  
+               case 6: // right
+               {
+                  uint8_t lage = AbschnittLaden_TS(pfeil1);
+                  switch (Menu_Ebene & 0xF0)//Bits 7-4   
+                  {
+                     case 0x00:   //oberste Ebene
+                        
+                        break;
+                        
+                     case 0x10: // erste Ebene
+                     {
+                        
+                        
+                     }break;
+                        
+                        
+                  } // Menu_Ebene & 0xF0
+                  
+               } break; // case Folgetag
+                  
+                  //case 7:
+                  
+                  //   break;
+                  
+                  
+               case 8:    // down                                //Menu rueckwaertsschalten
+               {
+                  uint8_t lage = AbschnittLaden_TS(pfeil2);
+                  switch (Menu_Ebene & 0xF0)//Bits 7-4            oberste Ebene, Raeume
+                  {
+                     case 0x00:
+                     {
+                        //displayRaum(Raum_Thema, AnzeigeWochentag, (Zeit.stunde), Menu_Ebene);         //Anzeige aktualisieren
+                     }
+                        break;
+                        
+                     case 0x10:                           // erste Unterebene, Thema
+                     {
+                        
+                     }
+                        break;
+                        
+                  }// switch Menu_Ebene
+                  
+               }
+                  break;
+                  
+               case 9:
+               {
+                  uint8_t lage = AbschnittLaden_TS(drilldown);
+               }
+                  
+                    break;
+                  
+                  
+               case 12:// Ebene hoeher
+               {
+                  
+                  //Taste=99;
+                  
+                  //lcd_clr_line(1);
+                  //lcd_gotoxy(0,1);
+                  //lcd_puts("Taste 12\0");
+                  //delay_ms(100);
+                  //lcd_clr_line(1);
+                  switch (Menu_Ebene & 0xF0)
+                  {
+                     case 0x00:
+                     {
+                        
+                     }break;
+                        
+                     case 0x10:
+                     {
+                        Menu_Ebene = 0x00;                     //Ebene 0
+                        
+                     }break;
+                     case 0x20:
+                     {
+                        Menu_Ebene = 0x10;                     //   Ebene 1
+                        Menu_Ebene &= 0xF0;                     //   Bits 7 - 4 behalten, Bits 3-0 loeschen
+                        
+                     }break;
+                        
+                        
+                  }//switch MenuEbene
+                  
+                  
+               }break;
+                  
+                  
+            }//switch Taste
+            
+         }
+         
+      }
+      
+   }
+   else 
+   {
+      if (analogtastaturstatus & (1<<TASTE_ON))
+      {
+         //A0_ISR();  
+      digitalWriteFast(MA_EN,HIGH);
+      digitalWriteFast(MB_EN,HIGH);
+      digitalWriteFast(MC_EN,HIGH);
+         controller.stopAsync();
+         motor_A.setTargetRel(0);
+         motor_B.setTargetRel(0);
+         motor_C.setTargetRel(0);
+
+      Serial.printf("Tastenwert 0\n");
+      analogtastaturstatus &= ~(1<<TASTE_ON);
+      }
+   }
+}
+uint16_t readTastatur(void)
+{
+   uint16_t adctastenwert = adc->adc0->analogRead(ANALOGTASTATUR);
+   if (adctastenwert > 10)
+   {
+      //Serial.printf("readTastatur adctastenwert: %d\n",adctastenwert);
+      return adctastenwert;
+   }
+   return 0;
+}
 
 void thread_func(int inc) 
 {
@@ -1279,6 +1761,11 @@ void setup()
       digitalWriteFast(OSZI_PULS_A, HIGH); 
    }
    
+   pinMode(ANALOGTASTATUR,INPUT);
+   adc->adc0->setAveraging(16); 
+   adc->adc0->setResolution(10);
+   
+   adc->adc0->setReference(ADC_REFERENCE::REF_3V3);
    delay(100);
 //   lcd.init();
    delay(100);
@@ -1341,6 +1828,14 @@ void setup()
    dist1 = 10*spr1;
    dist2 = 10*spr2;
    
+#  pragma mark debounce setup
+   
+   for (uint8_t i= 0;i<8;i++)
+   {
+      tastenstatusarray[i].tasten_history = 0;
+      tastenstatusarray[i].pressed = 0;
+      tastenstatusarray[i].pin = 0xFF;
+   }
 
 } // end setup
 
@@ -1382,6 +1877,7 @@ void loop()
      //    Serial.printf("LED ON\n");
          digitalWriteFast(LOOPLED, 0);
          blinkcounter++;
+         
          /*
           //Serial.printf("blink\t %d\n",loopLED);
           lcd.setCursor(0,0);
@@ -1415,6 +1911,13 @@ void loop()
 #  pragma mark motor finished
    if (sincelaststep > 50) // 50 us
    {
+      tastencounter++;
+      if (tastencounter > 10)
+      {
+         tastencounter = 0;
+         taste = readTastatur();
+         tastenfunktion(taste);
+      }
       //sincelaststep = 0;
       //uint32_t speed = controller.getCurrentSpeed();
       if (controller.isRunning())
@@ -1426,10 +1929,9 @@ void loop()
       }
       else
       {
-        // Serial.printf("motor finished\n");
          if (controllerstatus & (1<<RUNNING)) // Running gerade beendet
          {
-            //Serial.printf("motor finished\n");
+            Serial.printf("motor finished\n");
             //Serial.printf("motor finished \t\t\t START code: %d abschnittnummer: %d endposition: %d\n",code, abschnittnummer, endposition);
             //Serial.printf("motor finished defaultcounter: \t%d\t  motorfinishedcounter: \t%d\t blinkcounter: \t%d \n",defaultcounter,motorfinishedcounter,blinkcounter);
             //digitalWriteFast(DC_PWM_PIN, 0);
@@ -1455,6 +1957,7 @@ void loop()
             {
                motor_C.setTargetRel(0);
                anschlagstatus &= ~(1<<END_C0);
+               
             }
             
             if (anschlagstatus & (1<<HOME_A0)) // ende retourfahrt nach Anschlag A0
@@ -1479,11 +1982,11 @@ void loop()
             
             //Serial.printf("motor finished A\n");
             sendstatus = 0; 
-            Serial.printf("\t abschnittnummer: %d endposition: %d ringbufferstatus: %d ladeposition: %d sendstatus: %d", abschnittnummer, endposition, ringbufferstatus, ladeposition, sendstatus);
+            //Serial.printf("\t abschnittnummer: %d endposition: %d ringbufferstatus: %d ladeposition: %d sendstatus: %d", abschnittnummer, endposition, ringbufferstatus, ladeposition, sendstatus);
             
             if ((abschnittnummer==endposition)) // Ablauf fertig
             {  
-               Serial.printf("motor finished B\n");
+               Serial.printf("motor finished endposition\n");
                Serial.printf("\t-----------------------> endpos \n");
                //noInterrupts();
                ringbufferstatus = 0;
@@ -1505,7 +2008,7 @@ void loop()
             }
             else 
             {
-               //Serial.printf("motor finished C\n");
+               //Serial.printf("motor finished inner\n");
                abschnittnummer++;
                
                sendbuffer[5]=(abschnittnummer & 0xFF00) >> 8;
@@ -1549,13 +2052,14 @@ void loop()
                   endposition = abschnittnummer; // letzter Abschnitt
                   
 #  pragma mark timebuffer
+                  /*
                   uint16_t zeile = 0;
                   Serial.printf("\twait\t task\n ");
                   for (zeile = 0;zeile < abschnittnummer;zeile++)
                   {
                      Serial.printf("%d\t %d\t %d\n ",zeile,timebuffer[zeile][0],timebuffer[zeile][1]);
                   }
-               
+               */
                
                }
                else
@@ -2078,9 +2582,9 @@ if (sinceusb > 20)
             uint8_t i=0;
             for(i=0;i<48;i++) // 5 us ohne printf, 10ms mit printf
             { 
-               //Serial.printf("%d \t",buffer[i]);
+               Serial.printf("%d \t",buffer[i]);
             }
-            //Serial.printf("\n");
+            Serial.printf("\n");
             sendbuffer[24] =  buffer[32];
             
             uint8_t indexh=buffer[26];
@@ -3042,7 +3546,7 @@ if (sinceusb > 20)
       //      if ((sendstatus == 3) ) 
       if ((sendstatus  <= 4) ) //  Bit 0,1,2,3 von Motor A-D   LAST: 7
       {
-         Serial.printf("\nsendstatus.task abschnittnummer: %d endposition: %d  aktuelleladeposition: %d ladeposition: %d**** ***** sendstatus: %d \n",abschnittnummer, endposition,aktuelleladeposition, ladeposition,sendstatus);
+         //Serial.printf("\nsendstatus.task abschnittnummer: %d endposition: %d  aktuelleladeposition: %d ladeposition: %d**** ***** sendstatus: %d \n",abschnittnummer, endposition,aktuelleladeposition, ladeposition,sendstatus);
          //Serial.printf("\nsendstatus.task aktuelleladeposition: %d ladeposition: %d \n",aktuelleladeposition, ladeposition);
          
          if (abschnittnummer == endposition)
@@ -3068,7 +3572,7 @@ if (sinceusb > 20)
          }
          else
          {
-            Serial.printf("\nsendstatus <4 0xD6\n");
+            //Serial.printf("\nsendstatus <4 0xD6\n");
             sendbuffer[0]=0xD6;
             //sendbuffer[0]=0xA1;
          }
@@ -3203,7 +3707,7 @@ if (sinceusb > 20)
          
   //       Serial.printf("COUNT_LAST sendstatus senderfolg: %d\n",senderfolg);
          
-         Serial.printf("COUNT_LAST\n");
+         //Serial.printf("COUNT_LAST\n");
   //       RawHID.send(sendbuffer, 50);
          sendstatus = 0;
       }
@@ -3226,7 +3730,7 @@ if (sinceusb > 20)
    if (ringbufferstatus & (1<<STARTBIT)) // Buffer ist in Ringbuffer geladen, Schnittdaten von Abschnitt 0 laden
    {
       //noInterrupts();
-      Serial.printf("\n                 Abschnitt 0 laden ringbufferstatus: %d\n",ringbufferstatus);
+      //Serial.printf("\n                 Abschnitt 0 laden ringbufferstatus: %d\n",ringbufferstatus);
       //Serial.printf("CNC-routinen    Startbit da            Abschnitt 0 laden ringbufferstatus: %d code: %d\n",ringbufferstatus, code);
       ringbufferstatus &= ~(1<<STARTBIT);  // Startbit entfernen      
       ladeposition=0;  // laufender Zaehler fuer Ringbuffer, gefiltert mit Ringbuffertiefe
@@ -3239,7 +3743,7 @@ if (sinceusb > 20)
       
       uint8_t i=0;
       
-       for(i=0;i<48;i++)
+ //      for(i=0;i<48;i++)
        {
 //       Serial.printf("%d\t",CNCDaten[ladeposition][i]);
        }
@@ -3317,12 +3821,12 @@ if (sinceusb > 20)
       ladeposition++;
       if (lage==2) // nur ein Abschnitt
       {
-         Serial.printf("lage == 2 Abschnitt 0 laden nur 1 Abschnitt anschlagstatus: %d\n",anschlagstatus);
+         //Serial.printf("lage == 2 Abschnitt 0 laden nur 1 Abschnitt anschlagstatus: %d\n",anschlagstatus);
          ringbufferstatus |=(1<<ENDBIT); // unbenutzt
          ringbufferstatus |=(1<<LASTBIT);
       }
       AbschnittCounter+=1;
-      Serial.printf("+++ Ersten Abschnitt laden END\n");
+      //Serial.printf("+++ Ersten Abschnitt laden END\n");
       interrupts();
       //      startTimer2();
       //      Serial.printf("motorstatus: %d\n",motorstatus);
@@ -3330,7 +3834,7 @@ if (sinceusb > 20)
    } // end 1<<STARTBIT
    else if (ringbufferstatus & (1<<INNERBIT))
    {
-      Serial.printf("\n *** *** *** INNERBIT Inneres Element    Abschnittcounter: %d  ringbufferstatus: %d code: %d\n",ringbufferstatus,AbschnittCounter,code);
+      //Serial.printf("\n *** *** *** INNERBIT Inneres Element    Abschnittcounter: %d  ringbufferstatus: %d code: %d\n",ringbufferstatus,AbschnittCounter,code);
       ringbufferstatus &= ~(1<<INNERBIT);
       uint8_t lage = 0;
       uint8_t i = 0;
