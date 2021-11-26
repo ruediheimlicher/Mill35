@@ -535,7 +535,8 @@ uint8_t  RepeatAbschnittLaden_TS(const uint8_t* AbschnittDaten) // 22us
    uint32_t dB = StepCounterB;
    uint32_t dC = StepCounterC;
    
-   //Serial.printf("da: %d dB: %d dC: %d\n",dA,dB,dC);   motor_A.setTargetRel(dA);
+   //Serial.printf("da: %d dB: %d dC: %d\n",dA,dB,dC);   
+   motor_A.setTargetRel(dA);
    motor_B.setTargetRel(dB);
    motor_C.setTargetRel(dC);
    Serial.printf("repeatcounter: %d\n",repeatcounter);
@@ -1412,7 +1413,7 @@ void loop()
    }// sinceblink
  
 #  pragma mark motor finished
-   if (sincelaststep > 100) // 50 us
+   if (sincelaststep > 50) // 50 us
    {
       //sincelaststep = 0;
       //uint32_t speed = controller.getCurrentSpeed();
@@ -1478,7 +1479,7 @@ void loop()
             
             //Serial.printf("motor finished A\n");
             sendstatus = 0; 
-            //Serial.printf("\t abschnittnummer: %d endposition: %d ringbufferstatus: %d ladeposition: %d sendstatus: %d", abschnittnummer, endposition, ringbufferstatus, ladeposition, sendstatus);
+            Serial.printf("\t abschnittnummer: %d endposition: %d ringbufferstatus: %d ladeposition: %d sendstatus: %d", abschnittnummer, endposition, ringbufferstatus, ladeposition, sendstatus);
             
             if ((abschnittnummer==endposition)) // Ablauf fertig
             {  
@@ -1493,12 +1494,12 @@ void loop()
                cncstatus=0;
                //         motorstatus=0;
               //         sendbuffer[0]=0xAD;
-               /*
+               
                sendbuffer[5]=(abschnittnummer & 0xFF00) >> 8;
                sendbuffer[6]=abschnittnummer & 0x00FF;
                sendbuffer[7]=(ladeposition & 0xFF00) >> 8;
                sendbuffer[8]=ladeposition & 0x00FF;
-*/
+
                ladeposition=0;
                interrupts();
             }
@@ -2089,7 +2090,7 @@ if (sinceusb > 20)
             //Serial.printf("indexh: %d indexl: %d pfeiltag: %d\n",indexh,indexl,pfeiltag);
             abschnittnummer= indexh<<8;
             abschnittnummer += indexl;
-            //Serial.printf("abschnittnummer: *%d*\n",abschnittnummer);
+            Serial.printf("DE abschnittnummer: *%d*\n",abschnittnummer);
             sendbuffer[5]=(abschnittnummer & 0xFF00) >> 8;;
             sendbuffer[6]=abschnittnummer & 0x00FF;
             
@@ -2098,7 +2099,7 @@ if (sinceusb > 20)
             uint8_t lage = buffer[25];
             
             uint8_t mausstatus = buffer[43];
-            
+            Serial.printf("DE mausstatus: %d \n",mausstatus) ;
             
             if (mausstatus & (1<<2))
             {
@@ -2121,7 +2122,7 @@ if (sinceusb > 20)
              else
             {
                repeatcounter = 0; // mouseup
-               //Serial.printf("***********************     ********     DC repeatcounter 0: %d mouseup  \n",repeatcounter);
+               Serial.printf("***********************     ********     DE repeatcounter 0: %d mouseup  \n",repeatcounter);
                digitalWriteFast(MA_EN,HIGH);
                digitalWriteFast(MB_EN,HIGH);
                digitalWriteFast(MC_EN,HIGH);
@@ -3303,7 +3304,7 @@ if (sinceusb > 20)
          default:
          {
             Serial.printf(" CNC-routine startbit default loop AbschnittLaden_TM\n");
-            _delay_ms(50);
+            //_delay_ms(50);
             //lage=AbschnittLaden_TS(CNCDaten[ladeposition]); // erster Wert im Ringbuffer
             //Serial.printf("startbit default AbschnittLaden_TM end\n");
          }break;
@@ -3338,7 +3339,7 @@ if (sinceusb > 20)
       //Serial.printf("%d\t",CNCDaten[0][i]);
       }
       //Serial.printf("TS INNERBIT\n");
-      _delay_ms(200); // Warten vor laden
+      //_delay_ms(200); // Warten vor laden
       lage=AbschnittLaden_TS(CNCDaten[0]); // erster Wert 
       //Serial.printf("lage: %d\n",lage);
    
@@ -3490,6 +3491,7 @@ if (sinceusb > 20)
    // **************************************
    // vorwaerts
    //Serial.printf("Vorwaerts: A0_PIN_status: %d\n",A0_PIN_status);
+
    if ((digitalReadFast(END_B0_PIN) == 1))// Eingang ist HI, Schlitten nicht am Anschlag A0
    {
       if (anschlagstatus &(1<< END_B0)) // Schlitten war, aber ist nicht mehr am Anschlag
