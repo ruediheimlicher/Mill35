@@ -83,14 +83,14 @@ volatile uint16_t          cnc_recv_counter=0;
 
 
 elapsedMillis sinceblink;
-elapsedMillis sincelcd;
+//elapsedMillis sincelcd;
 elapsedMicros sinceusb;
 
-elapsedMillis sinceload; // Zeitdauer der Anzeige des Potentialwertes
+//elapsedMillis sinceload; // Zeitdauer der Anzeige des Potentialwertes
 
 elapsedMicros sincelaststep;
 
-elapsedMillis sincelastthread;
+//elapsedMillis sincelastthread;
 
 // Prototypes
 
@@ -99,6 +99,7 @@ static volatile uint8_t sendbuffer[USB_DATENBREITE]={};// Daten nach usb
 
 static volatile uint8_t drillbuffer[USB_DATENBREITE]={};// Daten fuer Drill, beim Start geladen
 
+volatile uint16_t timebuffer[496][2] = {};
 
 // Ringbuffer
 uint8_t                    CNCDaten[RINGBUFFERTIEFE][USB_DATENBREITE];
@@ -1448,7 +1449,7 @@ void loop()
             taskzeit = tasktime;
             waittime = 0;
             //_delay_ms(100);//
-            /*
+            
             if (anschlagstatus & (1<<END_C0))
             {
                motor_C.setTargetRel(0);
@@ -1474,7 +1475,7 @@ void loop()
            //    anschlagstatus |= (1<<HOME_A0);
                
              }
-            */
+            
             //Serial.printf("motor finished A\n");
             sendstatus = 0; 
             //Serial.printf("\t abschnittnummer: %d endposition: %d ringbufferstatus: %d ladeposition: %d sendstatus: %d", abschnittnummer, endposition, ringbufferstatus, ladeposition, sendstatus);
@@ -1517,7 +1518,10 @@ void loop()
                //aktuelleladeposition=(ladeposition & 0x00FF);
                //Serial.printf("motor finished ladeposition: \t%d\t\tdefaultcounter: \t%d\t  motorfinishedcounter: \t%d \t taskzeit: %d\t waitzeit: %d\n",ladeposition,defaultcounter,motorfinishedcounter, taskzeit, waitzeit);
   //             Serial.printf("motor finished ladeposition: \t%d\t taskzeit: \t %d\t waitzeit:\t %d\n",ladeposition,taskzeit, waitzeit);
-
+               
+               timebuffer[ladeposition][0] = waitzeit;
+               timebuffer[ladeposition][1] = taskzeit;
+               
                aktuelleladeposition &= 0x03;
                //Serial.printf("motor finished \t\t aktuelleladeposition C: %d\n",aktuelleladeposition);
 
@@ -1543,12 +1547,21 @@ void loop()
                   //noInterrupts();
                   endposition = abschnittnummer; // letzter Abschnitt
                   
+#  pragma mark timebuffer
+                  uint16_t zeile = 0;
+                  Serial.printf("\twait\t task\n ");
+                  for (zeile = 0;zeile < abschnittnummer;zeile++)
+                  {
+                     Serial.printf("%d\t %d\t %d\n ",zeile,timebuffer[zeile][0],timebuffer[zeile][1]);
+                  }
+               
+               
                }
                else
                {
-                  //Serial.printf("\t  next abschnittnummer: %d\n",abschnittnummer);
+                  Serial.printf("\t  next abschnittnummer: %d\n",abschnittnummer);
                }
-               waittime = 0;
+               //waittime = 0;
                //sendbuffer[0] = 0xD1;
                //RawHID.send(sendbuffer, 50);
                
@@ -1581,7 +1594,7 @@ void loop()
 #pragma mark start_usb
    
 //   r = usb_rawhid_recv((void*)buffer, 0); // 1.5us
-if (sinceusb > 50)   
+if (sinceusb > 20)   
 {
    sinceusb = 0;
    r = RawHID.recv(buffer, 0); 
@@ -2084,9 +2097,9 @@ if (sinceusb > 50)
             
             uint8_t lage = buffer[25];
             
-            uint8_t mausstatus = buffer[40];
+            uint8_t mausstatus = buffer[43];
             
-            /*
+            
             if (mausstatus & (1<<2))
             {
                repeatcounter = 0;
@@ -2099,7 +2112,7 @@ if (sinceusb > 50)
 
             }
 
-            */
+            
            
             if (mausstatus & (1<<1)) // bit gesetzt
             {
@@ -3028,13 +3041,13 @@ if (sinceusb > 50)
       //      if ((sendstatus == 3) ) 
       if ((sendstatus  <= 4) ) //  Bit 0,1,2,3 von Motor A-D   LAST: 7
       {
-         //Serial.printf("\nsendstatus.task abschnittnummer: %d endposition: %d  aktuelleladeposition: %d ladeposition: %d**** ***** sendstatus: %d \n",abschnittnummer, endposition,aktuelleladeposition, ladeposition,sendstatus);
+         Serial.printf("\nsendstatus.task abschnittnummer: %d endposition: %d  aktuelleladeposition: %d ladeposition: %d**** ***** sendstatus: %d \n",abschnittnummer, endposition,aktuelleladeposition, ladeposition,sendstatus);
          //Serial.printf("\nsendstatus.task aktuelleladeposition: %d ladeposition: %d \n",aktuelleladeposition, ladeposition);
          
          if (abschnittnummer == endposition)
          {
-            //            Serial.printf("\n****************************************\n");
-            //Serial.printf("\n abschnittnummer = endposition sendstatus <=4 wert: %d  drillstatus: %d  22: %d\n",sendstatus,drillstatus ,sendbuffer[22]);
+            Serial.printf("\n****************************************\n");
+            Serial.printf("\n abschnittnummer = endposition sendstatus <=4 wert: %d  drillstatus: %d  22: %d\n",sendstatus,drillstatus ,sendbuffer[22]);
             //            //Serial.printf("\n****************************************\n");
          }
          
@@ -3047,19 +3060,22 @@ if (sinceusb > 50)
          
          if (sendstatus == 4) // Drillaktion
          {
+            Serial.printf("\nsendstatus 4 0xBB\n");
             sendbuffer[0]=0xBB;  // Drill zurueck
             
             
          }
          else
          {
+            Serial.printf("\nsendstatus <4 0xD6\n");
             sendbuffer[0]=0xD6;
+            //sendbuffer[0]=0xA1;
          }
          
          
          {
             // ***************************************
-  //          sendbuffer[0]=0xA1; // eventuell mehr Abschnitte
+           // sendbuffer[0]=0xA1; // eventuell mehr Abschnitte
             // ***************************************
 
             
@@ -3085,7 +3101,7 @@ if (sinceusb > 50)
                
    // ****************************************            
                
-   //            aktuellelage = AbschnittLaden_TS(CNCDaten[(aktuelleladeposition & 0x03)]);
+    //           aktuellelage = AbschnittLaden_TS(CNCDaten[(aktuelleladeposition & 0x03)]);
                
    
    // ****************************************            
@@ -3103,21 +3119,8 @@ if (sinceusb > 50)
                AbschnittCounter=0;
             
             }
-            /*
-             if (abschnittnummer == endposition)
-             {
-             sendbuffer[0]=0xD0;
-             sendbuffer[5]=(abschnittnummer & 0xFF00) >> 8;;
-             sendbuffer[6]=abschnittnummer & 0x00FF;
-             
-             sendbuffer[8]=globalaktuelleladeposition & 0x00FF;
-             //sendbuffer[7]=(ladeposition & 0xFF00) >> 8;
-             usb_rawhid_send((void*)sendbuffer, 50);
-             
-             }
-             */
             
-            _delay_ms(100); // warten vor Ende senden
+            //_delay_ms(200); // warten vor Ende senden
             //Serial.printf("send\n");
             RawHID.send(sendbuffer, 50);
          }
@@ -3222,7 +3225,7 @@ if (sinceusb > 50)
    if (ringbufferstatus & (1<<STARTBIT)) // Buffer ist in Ringbuffer geladen, Schnittdaten von Abschnitt 0 laden
    {
       //noInterrupts();
-      
+      Serial.printf("\n                 Abschnitt 0 laden ringbufferstatus: %d\n",ringbufferstatus);
       //Serial.printf("CNC-routinen    Startbit da            Abschnitt 0 laden ringbufferstatus: %d code: %d\n",ringbufferstatus, code);
       ringbufferstatus &= ~(1<<STARTBIT);  // Startbit entfernen      
       ladeposition=0;  // laufender Zaehler fuer Ringbuffer, gefiltert mit Ringbuffertiefe
@@ -3246,9 +3249,9 @@ if (sinceusb > 50)
          {
             if (repeatcounter == 1) // erster Auftritt
             {
-               //Serial.printf(" CNC-routine RepeatAbschnittLaden_TS start\n");
+               Serial.printf(" CNC-routine RepeatAbschnittLaden_TS start\n");
                lage=RepeatAbschnittLaden_TS(CNCDaten[ladeposition]); // erster Wert im Ringbuffer
-               //Serial.printf("loop RepeatAbschnittLaden_TS end\n");
+               Serial.printf("loop RepeatAbschnittLaden_TS end\n");
 
             }
 
@@ -3256,7 +3259,7 @@ if (sinceusb > 50)
          case 0xDC:
          case 0xD4:
          {
-            //Serial.printf(" CNC-routine startbit D4 AbschnittLaden_TS\n");
+            Serial.printf(" CNC-routine startbit D4 AbschnittLaden_TS\n");
             lage=AbschnittLaden_TS(CNCDaten[ladeposition]); // erster Wert im Ringbuffer
             //Serial.printf("startbit D4 AbschnittLaden_TS end\n");
 
@@ -3265,7 +3268,7 @@ if (sinceusb > 50)
          case 0xD5:   // PCB, von send_Daten
          {
             Serial.printf(" CNC-routine startbit D5 AbschnittLaden_TS\n");
-            _delay_ms(10);// Warten vor Laden erster Abschnitt
+            //_delay_ms(200);// Warten vor Laden erster Abschnitt
             lage=AbschnittLaden_TS(CNCDaten[ladeposition]); // erster Wert im Ringbuffer
             //Serial.printf("startbit D5 AbschnittLaden_TS end\n");
 
@@ -3273,7 +3276,7 @@ if (sinceusb > 50)
             
          case 0xB7: // move_Drill  
          {
-            //Serial.printf(" CNC-routine startbit B7 AbschnittLaden_TS\n");
+            Serial.printf(" CNC-routine startbit B7 AbschnittLaden_TS\n");
             lage=AbschnittLaden_TS(CNCDaten[ladeposition]); // erster Wert im Ringbuffer
             //Serial.printf("startbitB7 AbschnittLaden_TS end\n");
            
@@ -3282,7 +3285,7 @@ if (sinceusb > 50)
             
          case 0xBA: // Drillwegtask
          {
-            //Serial.printf("\n CNC-routine Drillwegtask startbit BA AbschnittLaden_TS ladeposition: %d\n",ladeposition);
+            Serial.printf("\n CNC-routine Drillwegtask startbit BA AbschnittLaden_TS ladeposition: %d\n",ladeposition);
             lage=AbschnittLaden_TS(CNCDaten[0]); 
             
             //Serial.printf("startbitBA AbschnittLaden_TS end\n");
@@ -3291,7 +3294,7 @@ if (sinceusb > 50)
          case 0xCA:
          {
             
-            //Serial.printf(" CNC-routine startbit CA AbschnittLaden_TS ladeposition: %d\n",ladeposition);
+            Serial.printf(" CNC-routine startbit CA AbschnittLaden_TS ladeposition: %d\n",ladeposition);
             lage=AbschnittLaden_TS(CNCDaten[ladeposition]); 
             //Serial.printf("startbit CA AbschnittLaden_TM end\n");
          }break;
@@ -3313,12 +3316,12 @@ if (sinceusb > 50)
       ladeposition++;
       if (lage==2) // nur ein Abschnitt
       {
-//         Serial.printf("lage == 2 Abschnitt 0 laden nur 1 Abschnitt anschlagstatus: %d\n",anschlagstatus);
+         Serial.printf("lage == 2 Abschnitt 0 laden nur 1 Abschnitt anschlagstatus: %d\n",anschlagstatus);
          ringbufferstatus |=(1<<ENDBIT); // unbenutzt
          ringbufferstatus |=(1<<LASTBIT);
       }
       AbschnittCounter+=1;
-      //Serial.printf("+++ Ersten Abschnitt laden END\n");
+      Serial.printf("+++ Ersten Abschnitt laden END\n");
       interrupts();
       //      startTimer2();
       //      Serial.printf("motorstatus: %d\n",motorstatus);
@@ -3326,7 +3329,7 @@ if (sinceusb > 50)
    } // end 1<<STARTBIT
    else if (ringbufferstatus & (1<<INNERBIT))
    {
-      //Serial.printf("\n *** *** *** INNERBIT Inneres Element    Abschnittcounter: %d  ringbufferstatus: %d code: %d\n",ringbufferstatus,AbschnittCounter,code);
+      Serial.printf("\n *** *** *** INNERBIT Inneres Element    Abschnittcounter: %d  ringbufferstatus: %d code: %d\n",ringbufferstatus,AbschnittCounter,code);
       ringbufferstatus &= ~(1<<INNERBIT);
       uint8_t lage = 0;
       uint8_t i = 0;
@@ -3335,7 +3338,7 @@ if (sinceusb > 50)
       //Serial.printf("%d\t",CNCDaten[0][i]);
       }
       //Serial.printf("TS INNERBIT\n");
-      _delay_ms(100); // Warten vor laden
+      _delay_ms(200); // Warten vor laden
       lage=AbschnittLaden_TS(CNCDaten[0]); // erster Wert 
       //Serial.printf("lage: %d\n",lage);
    
