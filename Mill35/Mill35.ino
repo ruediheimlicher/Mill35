@@ -493,6 +493,84 @@ void OSZI_B_HI(void)
       digitalWriteFast(OSZI_PULS_B,HIGH);
 }
 
+void stopTask(uint8_t emergency)
+{
+   ringbufferstatus = 0;
+   motorstatus=0;
+   anschlagstatus = 0;
+   cncstatus = 0;
+   sendbuffer[0]=0xE1;
+   
+   sendbuffer[5]=(abschnittnummer & 0xFF00) >> 8;;
+   sendbuffer[6]=abschnittnummer & 0x00FF;
+   
+   sendbuffer[8]=ladeposition & 0x00FF;
+   sendbuffer[7]=(ladeposition & 0xFF00) >> 8;
+   
+   
+   
+   //usb_rawhid_send((void*)sendbuffer, 100);
+   RawHID.send(sendbuffer, 50);
+   sendbuffer[0]=0x00;
+   sendbuffer[5]=0x00;
+   sendbuffer[6]=0x00;
+   sendbuffer[8]=0x00;
+   
+   ladeposition=0;
+   sendbuffer[8]=ladeposition;
+   endposition=0xFFFF;
+   
+   AbschnittCounter=0;
+   PWM = sendbuffer[29];
+   
+   
+   //digitalWriteFast(DC_PWM_PIN,HIGH);
+   
+   /*
+   StepCounterA=0;
+   StepCounterB=0;
+   StepCounterC=0;
+   StepCounterD=0;
+   
+   CounterA=0;
+   CounterB=0;
+   CounterC=0;
+   CounterD=0;
+   
+   
+    STEPPERPORT_1 |= (1<<MA_EN); // Pololu OFF
+    STEPPERPORT_1 |= (1<<MB_EN); // Pololu OFF
+    STEPPERPORT_2 |= (1<<MC_EN); // Pololu OFF
+    STEPPERPORT_2 |= (1<<MD_EN); // Pololu OFF
+    */
+   if (emergency == 1)
+   {
+   controller.emergencyStop();
+   }
+   else
+   {
+      controller.stopAsync();
+   }
+   motor_A.setTargetRel(0);
+   motor_B.setTargetRel(0);
+   motor_C.setTargetRel(0);
+   controllerstatus &= ~(1<<RUNNING);
+   
+   digitalWriteFast(MA_EN,HIGH);
+   digitalWriteFast(MB_EN,HIGH);
+   digitalWriteFast(MC_EN,HIGH);
+
+   digitalWriteFast(MA_STEP,HIGH);
+   digitalWriteFast(MB_STEP,HIGH);
+   digitalWriteFast(MC_STEP,HIGH);
+   
+   //lcd.setCursor(0,1);
+   //lcd.print("HALT");
+   
+   // lcd_gotoxy(0,1);
+   // lcd_puts("HALT\0");
+   Serial.printf("E0 Stop END\n");
+}
 uint8_t Menu_Ebene=0;
 
 uint8_t Tastenwahl(uint16_t Tastaturwert)
@@ -1518,9 +1596,11 @@ void tastenfunktion(uint16_t Tastenwert)
                     break;
                   
                   
-               case 12:// Ebene hoeher
+               case 12:// 
                {
+                  //STOP
                   
+                  stopTask(0);
                   //Taste=99;
                   
                   //lcd_clr_line(1);
@@ -1566,16 +1646,16 @@ void tastenfunktion(uint16_t Tastenwert)
       if (analogtastaturstatus & (1<<TASTE_ON))
       {
          //A0_ISR();  
-      digitalWriteFast(MA_EN,HIGH);
-      digitalWriteFast(MB_EN,HIGH);
-      digitalWriteFast(MC_EN,HIGH);
+         digitalWriteFast(MA_EN,HIGH);
+         digitalWriteFast(MB_EN,HIGH);
+         digitalWriteFast(MC_EN,HIGH);
          controller.stopAsync();
          motor_A.setTargetRel(0);
          motor_B.setTargetRel(0);
          motor_C.setTargetRel(0);
-
-      Serial.printf("Tastenwert 0\n");
-      analogtastaturstatus &= ~(1<<TASTE_ON);
+         
+         Serial.printf("Tastenwert 0\n");
+         analogtastaturstatus &= ~(1<<TASTE_ON);
       }
    }
 }
@@ -3034,15 +3114,19 @@ if (sinceusb > 20)
              STEPPERPORT_2 |= (1<<MD_EN); // Pololu OFF
              */
             
-            controller.stopAsync();
+            controller.emergencyStop();
             motor_A.setTargetRel(0);
             motor_B.setTargetRel(0);
+            motor_C.setTargetRel(0);
             controllerstatus &= ~(1<<RUNNING);
             
             digitalWriteFast(MA_EN,HIGH);
             digitalWriteFast(MB_EN,HIGH);
             digitalWriteFast(MC_EN,HIGH);
-           // digitalWriteFast(MD_EN,HIGH);
+
+            digitalWriteFast(MA_STEP,HIGH);
+            digitalWriteFast(MB_STEP,HIGH);
+            digitalWriteFast(MC_STEP,HIGH);
             
             //lcd.setCursor(0,1);
             //lcd.print("HALT");
@@ -3156,7 +3240,9 @@ if (sinceusb > 20)
             
             digitalWriteFast(MA_STEP,HIGH);
             digitalWriteFast(MB_STEP,HIGH);
+            digitalWriteFast(MC_STEP,HIGH);
             
+            controller.emergencyStop();
             //           lcd.setCursor(0,1);
             //           lcd.print("reset\n");
             //cli();
