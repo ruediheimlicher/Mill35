@@ -570,6 +570,7 @@ void stopTask(uint8_t emergency)
    // lcd_gotoxy(0,1);
    // lcd_puts("HALT\0");
    Serial.printf("E0 Stop END\n");
+   
 }
 uint8_t Menu_Ebene=0;
 
@@ -1601,6 +1602,7 @@ void tastenfunktion(uint16_t Tastenwert)
                   //STOP
                   
                   stopTask(0);
+                  
                   //Taste=99;
                   
                   //lcd_clr_line(1);
