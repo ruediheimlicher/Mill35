@@ -256,6 +256,11 @@ int AccelerationB = AccelerationA;
 int AccelerationC = 6000;
 StepControl controller(10,5000);
 
+volatile uint8_t           speedstatus=0x00;
+#define SPEEDA_CHANGED 0
+#define SPEEDB_CHANGED 1
+#define SPEEDC_CHANGED 2
+
 int dir = 1;
 int dist1 = 0;
 int dist2 = 0;
@@ -1449,6 +1454,7 @@ void tastenfunktion(uint16_t Tastenwert)
             {
                case 0://
                { 
+                  Serial.printf("Taste 0\n");
                   break;
                   // Blinken auf C2
                   
@@ -1458,7 +1464,11 @@ void tastenfunktion(uint16_t Tastenwert)
                   
                case 1: 
                {
-                 
+                  Serial.printf("Taste 1\n");
+                  motor_C.setTargetAbs(800);
+                  digitalWriteFast(MC_EN,LOW);
+                  controller.move(motor_C);
+
                }
                   break;
                   
@@ -1511,6 +1521,7 @@ void tastenfunktion(uint16_t Tastenwert)
                         
                      case 0x20: // zweite Ebene, Plan
                      {
+                        
                      }break;   //   case 0x20
                         
                         
@@ -1521,6 +1532,7 @@ void tastenfunktion(uint16_t Tastenwert)
                   
                case 5:                        // Ebene tiefer
                {
+                  Serial.printf("Taste 5\n");
                   if ((Menu_Ebene & 0xF0)<0x20)
                   {
                      switch (Menu_Ebene & 0xF0)
@@ -1562,9 +1574,15 @@ void tastenfunktion(uint16_t Tastenwert)
                   
                } break; // case Folgetag
                   
-                  //case 7:
-                  
-                  //   break;
+               case 7:
+               {
+                  Serial.printf("Taste 7\n");
+                  motor_C.setTargetAbs(-400);
+                  digitalWriteFast(MC_EN,LOW);
+                  controller.move(motor_C);
+
+               }
+               break;
                   
                   
                case 8:    // down                                //Menu rueckwaertsschalten
@@ -1594,9 +1612,16 @@ void tastenfunktion(uint16_t Tastenwert)
                   uint8_t lage = AbschnittLaden_TS(drilldown);
                }
                   
-                    break;
+               break;
                   
-                  
+               case 10: // Nullpunkt
+               {
+                  Serial.printf("Taste 10\n");
+                  motor_C.setTargetAbs(0);
+                  digitalWriteFast(MC_EN,LOW);
+                  controller.move(motor_C);
+
+               }break;
                case 12:// 
                {
                   //STOP
@@ -2195,7 +2220,7 @@ if (sinceusb > 20)
       PWM = buffer[29]    +1;
       
       //Serial.printf("\n***************************************  --->    rawhid_recv start code HEX: %02X\n",code);
-      //Serial.printf("code: %d\n",code);
+      Serial.printf("code: %d\n",code);
       usb_recv_counter++;
       //     lcd.setCursor(10,1);
       //     lcd.print(String(usb_recv_counter));
@@ -2422,6 +2447,21 @@ if (sinceusb > 20)
             //usb_rawhid_send((void*)sendbuffer, 50);
             Serial.printf("         B7 END\n\n");
             
+         }break;
+            
+         case 0xB9: // Drillspeed
+         {
+            uint16_t drillspeed = (buffer[20]<<8) | buffer[21];
+            Serial.printf("B9 drillspeed: %d\n",drillspeed);
+            if (controllerstatus & (1<<RUNNING))
+            {
+               speedstatus |= (1<<SPEEDC_CHANGED);
+            }
+            else
+            {
+               speedC = drillspeed;
+               motor_C.setMaxSpeed(speedC);
+            }
          }break;
             
 #pragma mark                    BA             
