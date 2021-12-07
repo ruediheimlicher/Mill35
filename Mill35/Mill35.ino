@@ -1410,6 +1410,7 @@ gpio_MCP23S17     mcp0(10,0x20);//instance 0 (address A0,A1,A2 tied to 0)
 //delay(1000); 
 // Add setup code
 
+#  pragma mark Tastenfunktion
 
 void tastenfunktion(uint16_t Tastenwert)
 {
@@ -1533,6 +1534,8 @@ void tastenfunktion(uint16_t Tastenwert)
                case 5:                        // Ebene tiefer
                {
                   Serial.printf("Taste 5\n");
+                  
+                  
                   if ((Menu_Ebene & 0xF0)<0x20)
                   {
                      switch (Menu_Ebene & 0xF0)
@@ -1576,10 +1579,19 @@ void tastenfunktion(uint16_t Tastenwert)
                   
                case 7:
                {
-                  Serial.printf("Taste 7\n");
-                  motor_C.setTargetAbs(-400);
-                  digitalWriteFast(MC_EN,LOW);
-                  controller.move(motor_C);
+                  Serial.printf("\nTaste 7 \n");
+                  uint32_t pos_A = motor_A.getPosition();
+                  uint32_t pos_B = motor_B.getPosition();
+                  Serial.printf("pos A: %d pos B: %d\n",pos_A, pos_B);
+                  
+                  //motor_A.setTargetRel(-pos_A);
+                  //motor_B.setTargetRel(-pos_B);
+                  motor_A.setTargetAbs(0);
+                  motor_B.setTargetAbs(0);
+                  
+                  digitalWriteFast(MA_EN,LOW);
+                  digitalWriteFast(MB_EN,LOW);
+                  controller.move(motor_A, motor_B);
 
                }
                break;
@@ -1614,12 +1626,24 @@ void tastenfunktion(uint16_t Tastenwert)
                   
                break;
                   
-               case 10: // Nullpunkt
+               case 10: // set Nullpunkt
                {
                   Serial.printf("Taste 10\n");
-                  motor_C.setTargetAbs(0);
-                  digitalWriteFast(MC_EN,LOW);
-                  controller.move(motor_C);
+                  uint32_t pos_A = motor_A.getPosition();
+                  
+                  uint32_t pos_B = motor_B.getPosition();
+                  Serial.printf("vor reset: pos A: %d pos B: %d\n",pos_A, pos_B);
+
+                  motor_A.setPosition(0);
+                  motor_B.setPosition(0);
+                  
+                  pos_A = motor_A.getPosition();
+                  pos_B = motor_B.getPosition();
+                  Serial.printf("nach reset: pos A: %d pos B: %d\n",pos_A, pos_B);
+
+                  //motor_C.setTargetAbs(0);
+                  //digitalWriteFast(MC_EN,LOW);
+                  //controller.move(motor_C);
 
                }break;
                case 12:// 
@@ -2553,18 +2577,19 @@ if (sinceusb > 20)
          case 0xDC:
          {
             repeatcounter = 0; // reset
-            //Serial.printf("* code: %d TeensyStep BC Device: %d* Data: \n",code, device);
+            Serial.printf("* code: %d TeensyStep BC Device: %d* Data: \n",code, device);
             uint8_t i=0;
             for(i=0;i<48;i++) // 5 us ohne printf, 10ms mit printf
             { 
-               //Serial.printf("%d \t",buffer[i]);
+               Serial.printf("%d \t",buffer[i]);
             }
-            //Serial.printf("\n");
+            Serial.printf("\n");
+            
             sendbuffer[24] =  buffer[32];
             
             uint8_t indexh=buffer[26];
             uint8_t indexl=buffer[27];
-            //Serial.printf("indexh: %d indexl: %d\n",indexh,indexl);
+            Serial.printf("indexh: %d indexl: %d\n",indexh,indexl);
             abschnittnummer= indexh<<8;
             abschnittnummer += indexl;
             //Serial.printf("abschnittnummer: *%d*\n",abschnittnummer);
@@ -2654,15 +2679,15 @@ if (sinceusb > 20)
             
             if (buffer[25]& 0x02)// letzter Abschnitt
             {
-               //              Serial.printf("------------------------  last abschnitt\n");
+                             Serial.printf("------------------------  last abschnitt\n");
                ringbufferstatus |= (1<<LASTBIT); // letzter Abschnitt
                if (ringbufferstatus & (1<<FIRSTBIT)) // nur ein Abschnitt
                {
                   // endposition setzen
-                  //                Serial.printf("------------------------  erster ist letzter Abschnitt\n");
+                  Serial.printf("------------------------  erster ist letzter Abschnitt\n");
                   endposition=abschnittnummer; // erster ist letzter Abschnitt
                   
-                  //               Serial.printf("------------------------  nur ein abschnitt endposition: %d   * ringbufferstatus: %d\n",endposition, ringbufferstatus);
+                  Serial.printf("------------------------  nur ein abschnitt endposition: %d   * ringbufferstatus: %d\n",endposition, ringbufferstatus);
                }
                
             }
@@ -3889,10 +3914,10 @@ if (sinceusb > 20)
             }
 
          }break;
-         case 0xDC:
+         case 0xDC: // nicht mehr verwendet. Teensystep zu D5
          case 0xD4:
          {
-            Serial.printf(" CNC-routine startbit D4 AbschnittLaden_TS\n");
+            Serial.printf(" CNC-routine startbit DC,  D4 AbschnittLaden_TS\n");
             lage=AbschnittLaden_TS(CNCDaten[ladeposition]); // erster Wert im Ringbuffer
             //Serial.printf("startbit D4 AbschnittLaden_TS end\n");
 
