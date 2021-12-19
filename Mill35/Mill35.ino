@@ -168,11 +168,11 @@ volatile uint8_t           repeatstatus=0; // Bits fuer repeat Pfeiltasten
 
 volatile uint8_t           status=0;
 
-volatile uint8_t           PWM=0;
+volatile uint8_t           PWM=96;
 static volatile uint8_t    pwmposition=0;
 static volatile uint8_t    pwmdivider=0;
 
-
+volatile uint8_t           drillspeed = 0;
 volatile uint16_t           blinkcounter =0;
 volatile uint16_t           motorfinishedcounter =0;
 volatile uint16_t           defaultcounter =0;
@@ -526,8 +526,8 @@ void stopTask(uint8_t emergency)
    endposition=0xFFFF;
    
    AbschnittCounter=0;
-   PWM = sendbuffer[29];
-   
+   PWM = sendbuffer[PWM_BIT];
+   drillspeed = 0;
    
    //digitalWriteFast(DC_PWM_PIN,HIGH);
    
@@ -1808,7 +1808,24 @@ void C1_ISR(void)
 
 }
 
+void motor_C_checkNullpunkt(void)
+{
+   if (buffer[19] & 0x80) // negativ, abwaerts
+   {
+      uint16_t weg = buffer[17] << 8 | buffer[16];
+      int32_t abstand0 = motor_C.getPosition();
+      Serial.printf("DE vor korr weg: %d abstand0: %d\t",weg, abstand0);
+      if (abstand0 < weg) // anstossen unten
+      {
+         buffer[16] = abstand0 & 0x00FF;
+         buffer[17] = (abstand0 & 0xFF00)>>8;
+         
+      }
+      weg = buffer[17] << 8 | buffer[16];
+      Serial.printf("DE nach korr weg: %d abstand0: %d\n",weg, abstand0);
+   }
 
+}
 
 void setup()
 {
@@ -1886,7 +1903,11 @@ void setup()
    pinMode(DC_PWM_PIN,OUTPUT);
    analogWrite(DC_PWM_PIN,0xFF ); // 256 ist 100%
    
- //  if (TEST)
+   pinMode(DRILL_PIN,OUTPUT);
+   analogWrite(DRILL_PIN,0xFF ); // 256 ist 100%
+
+   
+   //  if (TEST)
    {
       pinMode(OSZI_PULS_A, OUTPUT);
       digitalWriteFast(OSZI_PULS_A, HIGH); 
@@ -1967,6 +1988,7 @@ void setup()
       tastenstatusarray[i].pressed = 0;
       tastenstatusarray[i].pin = 0xFF;
    }
+   analogWrite(DC_PWM_PIN,PWM + 1); 
 
 } // end setup
 
@@ -2062,19 +2084,21 @@ void loop()
       {
          if (controllerstatus & (1<<RUNNING)) // Running gerade beendet
          {
-            Serial.printf("motor finished\n");
+            //Serial.printf("motor finished\n");
             //Serial.printf("motor finished \t\t\t START code: %d abschnittnummer: %d endposition: %d\n",code, abschnittnummer, endposition);
             //Serial.printf("motor finished defaultcounter: \t%d\t  motorfinishedcounter: \t%d\t blinkcounter: \t%d \n",defaultcounter,motorfinishedcounter,blinkcounter);
             //digitalWriteFast(DC_PWM_PIN, 0);
             motorfinishedcounter++;
             uint8_t ri = digitalReadFast(MA_RI);
             //Serial.printf("Richtung A: %d",ri);
+            int32_t posC = motor_C.getPosition();
+            //Serial.printf("* motorfinished posC: %d\n",posC) ;
 
  //           sendbuffer[24] = 0xCB;
             controller.stopAsync();
             motor_A.setTargetRel(0);
             motor_B.setTargetRel(0);
-            motor_C.setTargetRel(0);
+ //           motor_C.setTargetRel(0);
             
             digitalWriteFast(MA_EN,HIGH);
             digitalWriteFast(MB_EN,HIGH);
@@ -2195,7 +2219,7 @@ void loop()
                }
                else
                {
-                  Serial.printf("\t  next abschnittnummer: %d\n",abschnittnummer);
+                  //Serial.printf("next nr: %d\n",abschnittnummer);
                }
                //waittime = 0;
                //sendbuffer[0] = 0xD1;
@@ -2241,10 +2265,10 @@ if (sinceusb > 20)
       
       code = buffer[24];
       
-      PWM = buffer[29]    +1;
-      
+      PWM = buffer[PWM_BIT]    +1;
+      drillspeed = buffer[DRILL_BIT];
       //Serial.printf("\n***************************************  --->    rawhid_recv start code HEX: %02X\n",code);
-      Serial.printf("code: %d\n",code);
+      //Serial.printf("code: %d\n",code);
       usb_recv_counter++;
       //     lcd.setCursor(10,1);
       //     lcd.print(String(usb_recv_counter));
@@ -2347,8 +2371,9 @@ if (sinceusb > 20)
             uint8_t indexh=buffer[26];
             uint8_t indexl=buffer[27];
             
-            PWM = buffer[29];
+            PWM = buffer[PWM_BIT];
             //Serial.printf("B5 PWM: %d",PWM);
+            drillspeed = buffer[DRILL_BIT];
             
             //   Serial.printf("indexh: %d indexl: %d\n",indexh,indexl);
             abschnittnummer= indexh<<8;
@@ -2364,7 +2389,7 @@ if (sinceusb > 20)
                //noInterrupts();
                //Serial.printf("B5 abschnittnummer 0 \tbuffer25 lage: %d \t buffer32 device: %d\n",buffer[25],buffer[32]);
                //             Serial.printf("count: %d\n",buffer[22]);
-               PWM= buffer[29];
+               PWM= buffer[PWM_BIT];
                //lcd.print(String(PWM));
                
                ladeposition=0;
@@ -2573,6 +2598,28 @@ if (sinceusb > 20)
             //Serial.printf("         BA END\n\n");
          }break;
             
+#pragma mark BC               Drill abs
+         case 0xBC:
+         {
+            Serial.printf("BC Drill abs\n");
+            
+         }break;
+
+
+#pragma mark BD               set Nullpunkt
+         case 0xBD:
+         {
+            Serial.printf("BD set Nullpunkt\n");
+            uint32_t posC = motor_C.getPosition();
+            Serial.printf("* BD posC: %d\n",posC) ;
+            motor_C.setPosition(0);
+            anschlagstatus |= (1<<NULLPUNKT_C);
+         }break;
+
+
+
+
+            
 #pragma mark   DC                  TeensyStep           
          case 0xDC:
          {
@@ -2586,6 +2633,8 @@ if (sinceusb > 20)
             Serial.printf("\n");
             
             sendbuffer[24] =  buffer[32];
+            
+            drillspeed = buffer[DRILL_BIT];
             
             uint8_t indexh=buffer[26];
             uint8_t indexl=buffer[27];
@@ -2608,7 +2657,7 @@ if (sinceusb > 20)
                //Serial.printf("BC abschnittnummer 0\n");
                //Serial.printf("B3 abschnittnummer 0 \tbuffer25 lage: %d \t buffer32 device: %d\n",buffer[25],buffer[32]);
                //             Serial.printf("count: %d\n",buffer[22]);
-               PWM= buffer[29];
+               PWM= buffer[PWM_BIT];
                //              lcd.print(String(PWM));
                
                ladeposition=0;
@@ -2744,7 +2793,27 @@ if (sinceusb > 20)
             Serial.printf("DE abschnittnummer: *%d*\n",abschnittnummer);
             sendbuffer[5]=(abschnittnummer & 0xFF00) >> 8;;
             sendbuffer[6]=abschnittnummer & 0x00FF;
+            if (anschlagstatus & (1<<NULLPUNKT_C))
+            {
+    //           motor_C_checkNullpunkt();
+            }
             
+            /*
+            if (buffer[19] & 0x80) // negativ, abwaerts
+            {
+               uint16_t weg = buffer[17] << 8 | buffer[16];
+               int32_t abstand0 = motor_C.getPosition();
+               Serial.printf("DE vor korr weg: %d abstand0: %d\t",weg, abstand0);
+               if (abstand0 < weg) // anstossen unten
+               {
+                  buffer[16] = abstand0 & 0x00FF;
+                  buffer[17] = (abstand0 & 0xFF00)>>8;
+                  
+               }
+               weg = buffer[17] << 8 | buffer[16];
+               Serial.printf("DE nach korr weg: %d abstand0: %d\n",weg, abstand0);
+            }
+            */
             // Lage:
             
             uint8_t lage = buffer[25];
@@ -2760,7 +2829,10 @@ if (sinceusb > 20)
                { 
                   //                 Serial.printf("%d \t",buffer[i]);
                   CNCDaten[0][i]=buffer[i];  
+               
+               
                }
+               // Check nullpunkt
 
             }
 
@@ -2781,7 +2853,7 @@ if (sinceusb > 20)
                controller.stopAsync();
                motor_A.setTargetRel(0);
                motor_B.setTargetRel(0);
-               motor_C.setTargetRel(0);
+    //           motor_C.setTargetRel(0);
 
             }
             //Serial.printf("DE  **********  mausstatus(37) %d repeatcounter: %d\n",mausstatus,repeatcounter);
@@ -2795,7 +2867,7 @@ if (sinceusb > 20)
                //Serial.printf("DC abschnittnummer 0\n");
                //Serial.printf("DC abschnittnummer 0 \tbuffer25 lage: %d \t buffer32 device: %d\n",buffer[25],buffer[32]);
                //             Serial.printf("count: %d\n",buffer[22]);
-               //PWM= buffer[29];
+               //PWM= buffer[PWM_BIT];
                //              lcd.print(String(PWM));
                
                ladeposition=0;
@@ -2940,6 +3012,8 @@ if (sinceusb > 20)
             abschnittnummer= indexh<<8;
             abschnittnummer += indexl;
             
+            drillspeed = buffer[DRILL_BIT];
+            
             // Lage:
             uint8_t lage = buffer[25];
             // lage im Ablauf: 
@@ -2963,7 +3037,7 @@ if (sinceusb > 20)
                //noInterrupts();
                //Serial.printf("D5 first: abschnittnummer 0 \tbuffer25 lage: %d \t buffer32 device: %d\n",buffer[25],buffer[32]);
                //             Serial.printf("count: %d\n",buffer[22]);
-               PWM= buffer[29];
+               PWM= buffer[PWM_BIT];
                //              lcd.print(String(PWM));
                
                ladeposition=0;
@@ -3052,10 +3126,21 @@ if (sinceusb > 20)
          case 0xD8:
             // PWM
          {
-            PWM = buffer[29];
+            PWM = buffer[PWM_BIT];
             analogWrite(DC_PWM_PIN,PWM + 1); // 256 ist 100%
             //Serial.printf("D8 PWM: %d\n",PWM);
          }break;
+           
+#pragma mark DA      MOTOR
+         case 0xDA:
+            // PWM
+         {
+            drillspeed = buffer[DRILL_BIT];
+            analogWrite(DRILL_PIN,drillspeed); // 256 ist 100%
+            //Serial.printf("D8 PWM: %d\n",PWM);
+         }break;
+           
+            
             
 #pragma mark                    CA             
          case 0xCA: // goto Zeile Kopie BA
@@ -3094,7 +3179,7 @@ if (sinceusb > 20)
             abschnittnummer= indexh<<8;
             abschnittnummer += indexl;
             //Serial.printf("BA abschnittnummer: *%d*\n",abschnittnummer);
-            
+            drillspeed = buffer[DRILL_BIT];
             if (abschnittnummer == 0)
             {
                ringbufferstatus=0x00;
@@ -3159,8 +3244,8 @@ if (sinceusb > 20)
             PWM = sendbuffer[29];
             //CMD_PORT &= ~(1<<DC_PWM_PIN);
             
-            
-            
+            drillspeed = 0;
+            digitalWriteFast(DRILL_PIN,HIGH);
             //digitalWriteFast(DC_PWM_PIN,HIGH);
             
             
@@ -3195,6 +3280,13 @@ if (sinceusb > 20)
             digitalWriteFast(MB_STEP,HIGH);
             digitalWriteFast(MC_STEP,HIGH);
             
+            uint8_t i=0;
+            for(i=0;i<48;i++) // 5 us ohne printf, 10ms mit printf
+            { 
+               //Serial.printf("%d \t",buffer[i]);
+               CNCDaten[0][i]=0;  
+            }
+
             //lcd.setCursor(0,1);
             //lcd.print("HALT");
             
@@ -3231,7 +3323,7 @@ if (sinceusb > 20)
             if (buffer[8])
             {
                digitalWriteFast(STROM_PIN,HIGH);
-               PWM = buffer[29];
+               PWM = buffer[PWM_BIT];
             }
             else
             {
@@ -3392,7 +3484,7 @@ if (sinceusb > 20)
                      Serial.printf("abschnittnummer 0 \t25: %d \t 32: %d\n",buffer[25],buffer[32]);
                      sendbuffer[24] =  buffer[32];  
                      //             Serial.printf("count: %d\n",buffer[22]);
-                      PWM= buffer[29];
+                      PWM= buffer[PWM_BIT];
                      
                      ladeposition=0;
                      //globalaktuelleladeposition = 0;
@@ -3580,7 +3672,7 @@ if (sinceusb > 20)
                      //                   Serial.printf("Device 2 abschnittnummer 0 \t buffer25: %d \t buffer32: %d\n",buffer[25],buffer[32]);
                      sendbuffer[24] =  buffer[32];  
                      //             Serial.printf("count: %d\n",buffer[22]);
-                     PWM= buffer[29];
+                     PWM= buffer[PWM_BIT];
                      
                      ladeposition=0;
                      endposition=0xFFFF;
@@ -3687,7 +3779,7 @@ if (sinceusb > 20)
    
 #pragma mark sendstatus
    //if (sendstatus >= 3)
-   //Serial.printf("\n++++++++++++++++++++++++++++++\nsendstatus: %d",sendstatus);
+   //Serial.printf("\n++++++++++++++++++++++++++++++\nsendstatus: %d\n",sendstatus);
 
    if (sendstatus > 0)
    {
@@ -3995,11 +4087,8 @@ if (sinceusb > 20)
       {
       //Serial.printf("%d\t",CNCDaten[0][i]);
       }
-      //Serial.printf("TS INNERBIT\n");
-      //_delay_ms(200); // Warten vor laden
       lage=AbschnittLaden_TS(CNCDaten[0]); // erster Wert 
-      //Serial.printf("lage: %d\n",lage);
-   
+//      Serial.printf("TS INNERBIT \tA: \t%d \t B: \t%d\t C: \t%d\n",CNCDaten[0][0],CNCDaten[0][8],CNCDaten[0][16]);
    
    }
    else if (ringbufferstatus & (1<<LASTBIT))

@@ -48,8 +48,9 @@
 
 // neu 3.5:
 #define STROM_PIN             24
-#define DC_PWM_PIN            35
 
+#define DC_PWM_PIN            35
+#define DRILL_PIN            36
 // Tastatur
 
 #define ANALOGTASTATUR     22
@@ -125,6 +126,7 @@
 // Spindel
 #define END_C0          4      //  Bit fuer Endanschlag C0 
 #define END_C1          5       //  Bit fuer Endanschlag C1 
+#define NULLPUNKT_C     6  // Nullpunkt C gesetzt
 
 #define HOME_A0          7       //  Home A
 #define HOME_B0          8
@@ -191,6 +193,8 @@
 #define RAMPOKBIT    7
 #define RAMPSCHRITT  10
 
+#define DRILL_BIT  28
+#define PWM_BIT  29
 
 #define DEVICE_MILL  1
 #define DEVICE_JOY  2
