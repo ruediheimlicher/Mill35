@@ -809,9 +809,9 @@ uint8_t  AbschnittLaden_TS(const uint8_t* AbschnittDaten) // 22us
  //     Serial.printf("AbschnittLaden_TS Motor C GO\n"); 
    }
    
-   controllerstatus |= (1<<RUNNING);
+   
    controller.moveAsync(motor_A, motor_B, motor_C);
-      
+   controllerstatus |= (1<<RUNNING);
    //Serial.printf("*********   AbschnittLaden_TS END \n");
    
 
