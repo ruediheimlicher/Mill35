@@ -161,11 +161,34 @@
 #define RAMPOKBIT    7
 #define RAMPSCHRITT  10
 
+#define DRILL_BIT  28
+#define PWM_BIT  29
+
+
 
 #define DEVICE_MILL  1
 #define DEVICE_JOY  2
 
 #define VORZEICHEN_X   0
 #define VORZEICHEN_Y   1
+
+
+#define TASTE0            0   // HALT-Bit Motor A
+#define TASTE1     67
+#define TASTE2     109
+#define TASTE3     163
+#define TASTE4     253
+#define TASTE5     360
+#define TASTE6     484
+#define TASTE7     628
+#define TASTE8     742
+#define TASTE9     827
+#define TASTEL     899
+#define TASTE0     946
+#define TASTER     993
+
+
+
+
 
 #endif /* settings_h */

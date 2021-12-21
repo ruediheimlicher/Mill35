@@ -146,7 +146,7 @@ volatile uint8_t           cncstatus=0x00;
 volatile uint8_t           sendstatus=0x00;
 
 volatile uint8_t           drillstatus=0x00;
-
+volatile uint8_t           drillspeed = 0;
 volatile uint8_t           drillupdownstatus=0x00; // Drilltaste
 #define DRILLTASTE_UP  1
 #define DRILLTASTE_DOWN 2
@@ -293,7 +293,85 @@ void OSZI_B_HI(void)
       digitalWriteFast(OSZI_PULS_B,HIGH);
 }
 
+void stopTask(uint8_t emergency)
+{
+   ringbufferstatus = 0;
+   motorstatus=0;
+   anschlagstatus = 0;
+   cncstatus = 0;
+   sendbuffer[0]=0xE1;
+   
+   sendbuffer[5]=(abschnittnummer & 0xFF00) >> 8;;
+   sendbuffer[6]=abschnittnummer & 0x00FF;
+   
+   sendbuffer[8]=ladeposition & 0x00FF;
+   sendbuffer[7]=(ladeposition & 0xFF00) >> 8;
+   
+   
+   
+   //usb_rawhid_send((void*)sendbuffer, 100);
+   RawHID.send(sendbuffer, 50);
+   sendbuffer[0]=0x00;
+   sendbuffer[5]=0x00;
+   sendbuffer[6]=0x00;
+   sendbuffer[8]=0x00;
+   
+   ladeposition=0;
+   sendbuffer[8]=ladeposition;
+   endposition=0xFFFF;
+   
+   AbschnittCounter=0;
+   PWM = sendbuffer[PWM_BIT];
+   drillspeed = 0;
+   
+   //digitalWriteFast(DC_PWM_PIN,HIGH);
+   
+   /*
+   StepCounterA=0;
+   StepCounterB=0;
+   StepCounterC=0;
+   StepCounterD=0;
+   
+   CounterA=0;
+   CounterB=0;
+   CounterC=0;
+   CounterD=0;
+   
+   
+    STEPPERPORT_1 |= (1<<MA_EN); // Pololu OFF
+    STEPPERPORT_1 |= (1<<MB_EN); // Pololu OFF
+    STEPPERPORT_2 |= (1<<MC_EN); // Pololu OFF
+    STEPPERPORT_2 |= (1<<MD_EN); // Pololu OFF
+    */
+   if (emergency == 1)
+   {
+   controller.emergencyStop();
+   }
+   else
+   {
+      controller.stopAsync();
+   }
+   motor_A.setTargetRel(0);
+   motor_B.setTargetRel(0);
+   motor_C.setTargetRel(0);
+   controllerstatus &= ~(1<<RUNNING);
+   
+   digitalWriteFast(MA_EN,HIGH);
+   digitalWriteFast(MB_EN,HIGH);
+   digitalWriteFast(MC_EN,HIGH);
 
+   digitalWriteFast(MA_STEP,HIGH);
+   digitalWriteFast(MB_STEP,HIGH);
+   digitalWriteFast(MC_STEP,HIGH);
+   
+   //lcd.setCursor(0,1);
+   //lcd.print("HALT");
+   
+   // lcd_gotoxy(0,1);
+   // lcd_puts("HALT\0");
+   Serial.printf("E0 Stop END\n");
+   
+}
 
 void startTimer2(void)
 {
@@ -1564,7 +1642,9 @@ if (sinceusb > 100)
       
       code = buffer[24];
       
-      PWM = buffer[29]    +1;
+      PWM = buffer[PWM_BIT]    +1;
+      drillspeed = buffer[DRILL_BIT];
+      
       
       //Serial.printf("\n***************************************  --->    rawhid_recv start code HEX: %02X\n",code);
       //Serial.printf("code: %d\n",code);
