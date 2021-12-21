@@ -1363,7 +1363,7 @@ void loop()
       {
         // digitalWriteFast(STROM_PIN,1);
          //analogWrite(23,77);
-         Serial.printf("LED ON\n");
+         //Serial.printf("LED ON\n");
          digitalWriteFast(LOOPLED, 0);
          /*
           //Serial.printf("blink\t %d\n",loopLED);
@@ -1384,7 +1384,7 @@ void loop()
       }
       else
       {
-         Serial.printf("LED OFF\n");
+         //Serial.printf("LED OFF\n");
          digitalWriteFast(LOOPLED, 1);
          //digitalWriteFast(STROM_PIN,1);
       }
