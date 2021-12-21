@@ -49,8 +49,16 @@
 // neu 3.5:
 #define STROM_PIN             24
 #define DC_PWM_PIN            35
+#define DRILL_PIN            36
 
 // Tastatur
+#define ANALOGTASTATUR     22
+
+
+
+
+
+
 #define UP_PIN             24
 #define DOWN_PIN           25
 #define LEFT_PIN           26
@@ -60,13 +68,6 @@
 #define MILL_DOWN_PIN      29
 
 #define HALT_PIN           30
-
-/*
-#define MD_STEP            33           // PIN auf Stepperport 2
-#define MD_RI              34
-#define MD_EN              35
-#define END_D0_PIN         36           // Anschlagstatus:  Bit fuer Endanschlag bei D0
-*/
 
 
 
@@ -161,6 +162,22 @@
 #define RAMPOKBIT    7
 #define RAMPSCHRITT  10
 
+// revision
+#define TASTE1     67
+#define TASTE2     109
+#define TASTE3     163
+#define TASTE4     253
+#define TASTE5     360
+#define TASTE6     484
+#define TASTE7     628
+#define TASTE8     742
+#define TASTE9     827
+#define TASTEL     899
+#define TASTE0     946
+#define TASTER     993
+
+
+// revision end
 
 #define DEVICE_MILL  1
 #define DEVICE_JOY  2

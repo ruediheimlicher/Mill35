@@ -46,7 +46,7 @@
 // !!! Help: http://bit.ly/2AdU7cu
 #include "Arduino.h"
 #include "TeensyStep.h"
-
+#include <ADC.h>
 #include "gpio_MCP23S17.h"
 #include <SPI.h>
 #include "lcd.h"
@@ -167,9 +167,19 @@ volatile uint8_t           repeatstatus=0; // Bits fuer repeat Pfeiltasten
 
 volatile uint8_t           status=0;
 
-volatile uint8_t           PWM=0;
+volatile uint8_t           PWM=96;
 static volatile uint8_t    pwmposition=0;
 static volatile uint8_t    pwmdivider=0;
+
+volatile uint8_t           drillspeed = 0;
+volatile uint16_t           blinkcounter =0;
+volatile uint16_t           motorfinishedcounter =0;
+volatile uint16_t           defaultcounter =0;
+volatile uint32_t             taskzeit = 0;
+volatile uint32_t             waitzeit = 0;
+
+elapsedMillis           tasktime =0;
+elapsedMillis           waittime =0;
 
 // CNC
 
@@ -238,9 +248,9 @@ Stepper motor_A(schrittA, richtungA);   //STEP pin =  2, DIR pin = 3
 Stepper motor_B(schrittB, richtungB);   //STEP pin =  9, DIR pin = 10
 Stepper motor_C(schrittC, richtungC);  //STEP pin = 14, DIR pin = 15
 
-int speedA = 2400;
+int speedA =3000;
 int speedB = speedA;
-int speedC = 2400;
+int speedC = 3000;
 int AccelerationA = 6000;
 int AccelerationB = AccelerationA;
 int AccelerationC = 6000;
@@ -262,6 +272,164 @@ volatile uint8_t    repeatcounter=0; // anzahl repeats
 
 
 // Functions
+
+// rev
+// right
+uint8_t pfeil1[] = {200,20, 0, 0, 57, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 222, 2, 0, 0, 1, 77, 0, 128, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+// down
+uint8_t pfeil2[] = {0, 0, 0, 0, 0, 0, 0, 0, 200, 20, 0, 0, 0, 0, 206, 137, 0, 0, 0, 0, 0, 0, 0, 0, 222, 2, 0, 0, 2, 77, 0, 128, 1, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+// left
+uint8_t pfeil3[] = {206, 20, 0, 128, 57, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 222, 2, 0, 0, 1, 77, 0, 128, 1, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 2, 0, 0, 0, 0};
+// up
+uint8_t pfeil4[] = {0, 0, 0, 0, 0, 0, 0, 0, 206, 20, 0, 128, 0, 0, 206, 137, 0, 0, 0, 0, 0, 0, 0, 0, 222, 2, 0, 0, 2, 77, 0, 128, 1, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+
+uint8_t drillup[] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 206, 10, 0, 0, 0, 0, 0, 0, 222, 2, 0, 0, 4, 77, 0, 128, 1, 0, 0, 0, 0, 0, 22, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+uint8_t drilldown[] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 206, 10, 0, 128, 0, 0, 0, 0, 222, 2, 0, 0, 4, 77, 0, 128, 1, 0, 0, 0, 0, 0, 24, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+
+uint8_t pfeilarray[4] = {pfeil1,pfeil2,pfeil3,pfeil4};
+
+uint16_t taste = 0xFF;
+uint8_t tastencounter = 0;
+uint8_t TastaturCount=0;
+uint8_t Taste=0;
+uint8_t analogtastaturstatus = 0;
+#define TASTE_OFF  0
+#define TASTE_ON  1
+
+uint16_t TastenStatus=0;
+uint16_t Tastenprellen=0x1F;
+
+
+ADC *adc = new ADC(); // adc object
+
+#  pragma mark Ganssle setup
+// Ganssle von Netzteil_20
+typedef struct
+{
+   uint8_t pin;
+   uint16_t tasten_history;
+   uint8_t pressed;
+   long lastDebounceTime;
+}tastenstatus;
+
+//long lastDebounceTime = 0;  // the last time the output pin was toggled
+long debounceDelay = 20;    // the debounce time; increase if the output flickers
+volatile uint8_t tipptastenstatus = 0;
+tastenstatus tastenstatusarray[8] = {}; 
+
+uint8_t tastenbitstatus = 0; // bits fuer tasten
+
+volatile uint8_t tastencode = 0; // status der Tasten vom SPI-SR
+
+// http://www.ganssle.com/debouncing-pt2.htm
+#define MAX_CHECKS 8
+volatile uint8_t last_debounced_state = 0;
+volatile uint8_t debounced_state = 0;
+volatile uint8_t state[MAX_CHECKS] = {0};
+
+volatile uint8_t debounceindex = 0;
+void debounce_switch(uint8_t port)
+{
+   uint8_t i,j;
+   state[debounceindex] = port;
+   ++debounceindex;
+   j = 0xFF;
+   for (i=0;i<MAX_CHECKS;i++)
+   {
+      j=j & state[i];
+   }
+   debounced_state = j;
+   
+   if (debounceindex >= MAX_CHECKS)
+   {
+      debounceindex = 0;
+   }
+   
+}
+
+// Elliot https://hackaday.com/2015/12/10/embed-with-elliot-debounce-your-noisy-buttons-part-ii/
+uint8_t readTaste(uint8_t taste)
+{
+   
+   return (digitalReadFast(taste) == 0);
+}
+
+void update_button(uint8_t taste, uint16_t *button_history)
+{
+   *button_history = *button_history << 1;
+   *button_history |= readTaste(taste); 
+}
+
+uint8_t is_button_pressed(uint8_t button_history)
+{
+   return (button_history == 0b01111111);
+}
+
+uint8_t is_button_released(uint8_t button_history)
+{
+   return (button_history == 0b10000000);
+}
+
+uint8_t is_button_down(uint8_t *button_history)
+{
+        return (*button_history == 0b11111111);
+}
+uint8_t is_button_up(uint8_t *button_history)
+{
+        return (*button_history == 0b00000000);
+}
+uint8_t test_for_press_only(uint8_t pin)
+{   
+   static uint16_t button_history = 0;
+   uint8_t pressed = 0;    
+   
+   button_history = button_history << 1;
+   button_history |= readTaste(pin);
+   if ((button_history & 0b11000111) == 0b00000111)
+   { 
+      pressed = 1;
+      button_history = 0b11111111;
+   }
+   return pressed;
+}
+
+// end Elliot
+
+
+uint8_t checktasten(void)
+{
+   uint8_t count = 0; // Anzahl aktivierter Tasten
+   uint8_t i=0;
+   uint8_t tastencode = 0;
+   while (i<8)
+   {
+      uint8_t pressed = 0;
+      if (tastenstatusarray[i].pin < 0xFF)
+      {
+         count++;
+         tastenstatusarray[i].tasten_history = (tastenstatusarray[i].tasten_history << 1);
+         tastenstatusarray[i].tasten_history |= readTaste(tastenstatusarray[i].pin); // pin-nummer von element i
+         if ((tastenstatusarray[i].tasten_history & 0b11000111) == 0b00000111)
+         {
+            pressed = 1;
+            tipptastenstatus |= (1<<i);
+            tastenbitstatus |= (1<<i);
+            tastenstatusarray[i].tasten_history = 0b11111111;
+            tastenstatusarray[i].pressed = pressed;
+         }
+         
+      }// i < 0xFF
+      
+      i++;
+   }
+   // tastenstatusarray
+   //return tastencode;
+   return tipptastenstatus ;
+}
+
+
+
+// end rev
 
 void OSZI_A_LO(void)
 {
@@ -293,7 +461,38 @@ void OSZI_B_HI(void)
       digitalWriteFast(OSZI_PULS_B,HIGH);
 }
 
+uint8_t Menu_Ebene=0;
 
+uint8_t Tastenwahl(uint16_t Tastaturwert)
+{
+   if (Tastaturwert < TASTE1)
+      return 1;
+   if (Tastaturwert < TASTE2)
+      return 2;
+   if (Tastaturwert < TASTE3)
+      return 3;
+   if (Tastaturwert < TASTE4)
+      return 4;
+   if (Tastaturwert < TASTE5)
+      return 5;
+   if (Tastaturwert < TASTE6)
+      return 6;
+   if (Tastaturwert < TASTE7)
+      return 7;
+   if (Tastaturwert < TASTE8)
+      return 8;
+   if (Tastaturwert < TASTE9)
+      return 9;
+   if (Tastaturwert < TASTEL)
+      return 10;
+   if (Tastaturwert < TASTE0)
+      return 0;
+   if (Tastaturwert < TASTER)
+      return 12;
+   
+   return 0;
+}
+ // tastenwahl
 
 void startTimer2(void)
 {
@@ -1090,6 +1289,316 @@ gpio_MCP23S17     mcp0(10,0x20);//instance 0 (address A0,A1,A2 tied to 0)
 //delay(1000); 
 // Add setup code
 
+#  pragma mark Tastenfunktion
+
+void tastenfunktion(uint16_t Tastenwert)
+{
+   if (Tastenwert>23) // ca Minimalwert der Matrix
+   {
+      //         wdt_reset();
+      /*
+       0: Wochenplaninit
+       1: IOW 8* 2 Bytes auf Bus laden
+       2: Menu der aktuellen Ebene nach oben
+       3: IOW 2 Bytes vom Bus in Reg laden
+       4: Auf aktueller Ebene nach rechts (Heizung: Vortag lesen und anzeigen)                           
+       5: Ebene tiefer
+       6: Auf aktueller Ebene nach links (Heizung: Folgetag lesen und anzeigen)                           
+       7: 
+       8: Menu der aktuellen Ebene nach unten
+       9: DCF77 lesen
+       
+       12: Ebene höher
+       */
+      TastaturCount++;
+      if (TastaturCount>=40)   //   Prellen
+      {
+         TastaturCount=0x00;
+         if (analogtastaturstatus & (1<<TASTE_ON)) // 
+         {
+            
+         }
+         else 
+         {
+            
+            analogtastaturstatus |= (1<<TASTE_ON);
+            
+            Taste=Tastenwahl(Tastenwert);
+            Serial.printf("Tastenwert: %d Taste: %d \n",Taste,Tastenwert);
+            TastaturCount=0;
+            Tastenwert=0x00;
+            
+            uint8_t inBytes[4]={};
+            
+            switch (Taste)
+            {
+               case 0://
+               { 
+                  Serial.printf("Taste 0\n");
+                  break;
+                  // Blinken auf C2
+                  
+               }
+                  break;
+                  
+                  
+               case 1: 
+               {
+                  Serial.printf("Taste 1\n");
+                  motor_C.setTargetAbs(800);
+                  digitalWriteFast(MC_EN,LOW);
+                  controller.move(motor_C);
+
+               }
+                  break;
+                  
+               case 2:     // up                             //   Menu vorwaertsschalten   
+               {
+                  uint8_t lage = AbschnittLaden_TS(pfeil4);
+                  switch (Menu_Ebene & 0xF0)               //   Bits 7-4, Menu_Ebene
+                  {
+                     case 0x00:                        //   oberste Ebene, Raeume
+                     {
+                        
+                     }
+                        break;
+                        
+                     case 0x10:                        // erste Unterebene, Thema
+                     {
+                     }
+                        break;
+                     case    0x20:                        // zweite Unterebene
+                     {
+                        
+                     }break;
+                  }//switch Menu_Ebene
+                  
+               }
+                  break;
+                  
+               case 3:   //
+               {
+                  uint8_t lage = AbschnittLaden_TS(drillup);
+               }break;
+                  
+               case 4:   // left
+               {
+                  uint8_t lage = AbschnittLaden_TS(pfeil3);
+                  switch (Menu_Ebene & 0xF0)//Bits 7-4   
+                  {
+                     case 0x00:   //oberste Ebene
+                     {
+                        //err_clr_line(0);
+                        //err_puts("E0\0");
+                        
+                     }break;
+                        
+                     case 0x10: // erste Ebene
+                     {
+                        
+                        
+                     }break;
+                        
+                     case 0x20: // zweite Ebene, Plan
+                     {
+                        
+                     }break;   //   case 0x20
+                        
+                        
+                  }//switch Menu_Ebene & 0xF0
+                  
+               } break; // case Vortag
+                  
+                  
+               case 5:                        // Ebene tiefer
+               {
+                  Serial.printf("Taste 5\n");
+                  
+                  
+                  if ((Menu_Ebene & 0xF0)<0x20)
+                  {
+                     switch (Menu_Ebene & 0xF0)
+                     {
+                        case 0x00: // erste Ebene, Thema
+                        {
+                           Menu_Ebene = 0x10;
+                        }break;
+                           
+                        case 0x10:
+                        {
+                           Menu_Ebene = 0x20;
+                        }break;
+                           
+                     }//switch Menu_Ebene
+                     
+                     
+                     
+                  }
+               }            break;
+                  
+               case 6: // right
+               {
+                  uint8_t lage = AbschnittLaden_TS(pfeil1);
+                  switch (Menu_Ebene & 0xF0)//Bits 7-4   
+                  {
+                     case 0x00:   //oberste Ebene
+                        
+                        break;
+                        
+                     case 0x10: // erste Ebene
+                     {
+                        
+                        
+                     }break;
+                        
+                        
+                  } // Menu_Ebene & 0xF0
+                  
+               } break; // case Folgetag
+                  
+               case 7:
+               {
+                  Serial.printf("\nTaste 7 \n");
+                  uint32_t pos_A = motor_A.getPosition();
+                  uint32_t pos_B = motor_B.getPosition();
+                  Serial.printf("pos A: %d pos B: %d\n",pos_A, pos_B);
+                  
+                  //motor_A.setTargetRel(-pos_A);
+                  //motor_B.setTargetRel(-pos_B);
+                  motor_A.setTargetAbs(0);
+                  motor_B.setTargetAbs(0);
+                  
+                  digitalWriteFast(MA_EN,LOW);
+                  digitalWriteFast(MB_EN,LOW);
+                  controller.move(motor_A, motor_B);
+
+               }
+               break;
+                  
+                  
+               case 8:    // down                                //Menu rueckwaertsschalten
+               {
+                  uint8_t lage = AbschnittLaden_TS(pfeil2);
+                  switch (Menu_Ebene & 0xF0)//Bits 7-4            oberste Ebene, Raeume
+                  {
+                     case 0x00:
+                     {
+                        //displayRaum(Raum_Thema, AnzeigeWochentag, (Zeit.stunde), Menu_Ebene);         //Anzeige aktualisieren
+                     }
+                        break;
+                        
+                     case 0x10:                           // erste Unterebene, Thema
+                     {
+                        
+                     }
+                        break;
+                        
+                  }// switch Menu_Ebene
+                  
+               }
+                  break;
+                  
+               case 9:
+               {
+                  uint8_t lage = AbschnittLaden_TS(drilldown);
+               }
+                  
+               break;
+                  
+               case 10: // set Nullpunkt
+               {
+                  Serial.printf("Taste 10\n");
+                  uint32_t pos_A = motor_A.getPosition();
+                  
+                  uint32_t pos_B = motor_B.getPosition();
+                  Serial.printf("vor reset: pos A: %d pos B: %d\n",pos_A, pos_B);
+
+                  motor_A.setPosition(0);
+                  motor_B.setPosition(0);
+                  
+                  pos_A = motor_A.getPosition();
+                  pos_B = motor_B.getPosition();
+                  Serial.printf("nach reset: pos A: %d pos B: %d\n",pos_A, pos_B);
+
+                  //motor_C.setTargetAbs(0);
+                  //digitalWriteFast(MC_EN,LOW);
+                  //controller.move(motor_C);
+
+               }break;
+               case 12:// 
+               {
+                  //STOP
+                  
+//                  stopTask(0);
+                  
+                  //Taste=99;
+                  
+                  //lcd_clr_line(1);
+                  //lcd_gotoxy(0,1);
+                  //lcd_puts("Taste 12\0");
+                  //delay_ms(100);
+                  //lcd_clr_line(1);
+                  switch (Menu_Ebene & 0xF0)
+                  {
+                     case 0x00:
+                     {
+                        
+                     }break;
+                        
+                     case 0x10:
+                     {
+                        Menu_Ebene = 0x00;                     //Ebene 0
+                        
+                     }break;
+                     case 0x20:
+                     {
+                        Menu_Ebene = 0x10;                     //   Ebene 1
+                        Menu_Ebene &= 0xF0;                     //   Bits 7 - 4 behalten, Bits 3-0 loeschen
+                        
+                     }break;
+                        
+                        
+                  }//switch MenuEbene
+                  
+                  
+               }break;
+                  
+                  
+            }//switch Taste
+            
+         }
+         
+      }
+      
+   }
+   else 
+   {
+      if (analogtastaturstatus & (1<<TASTE_ON))
+      {
+         //A0_ISR();  
+         digitalWriteFast(MA_EN,HIGH);
+         digitalWriteFast(MB_EN,HIGH);
+         digitalWriteFast(MC_EN,HIGH);
+         controller.stopAsync();
+         motor_A.setTargetRel(0);
+         motor_B.setTargetRel(0);
+         motor_C.setTargetRel(0);
+         
+         Serial.printf("Tastenwert 0\n");
+         analogtastaturstatus &= ~(1<<TASTE_ON);
+      }
+   }
+}
+uint16_t readTastatur(void)
+{
+   uint16_t adctastenwert = adc->adc0->analogRead(ANALOGTASTATUR);
+   if (adctastenwert > 10)
+   {
+      //Serial.printf("readTastatur adctastenwert: %d\n",adctastenwert);
+      return adctastenwert;
+   }
+   return 0;
+}
 
 
 void thread_func(int inc) 
@@ -1363,7 +1872,7 @@ void loop()
       {
         // digitalWriteFast(STROM_PIN,1);
          //analogWrite(23,77);
-         Serial.printf("LED ON\n");
+         //Serial.printf("LED ON\n");
          digitalWriteFast(LOOPLED, 0);
          /*
           //Serial.printf("blink\t %d\n",loopLED);
@@ -1384,7 +1893,7 @@ void loop()
       }
       else
       {
-         Serial.printf("LED OFF\n");
+         //Serial.printf("LED OFF\n");
          digitalWriteFast(LOOPLED, 1);
          //digitalWriteFast(STROM_PIN,1);
       }
@@ -2029,9 +2538,9 @@ if (sinceusb > 100)
             uint8_t i=0;
             for(i=0;i<48;i++) // 5 us ohne printf, 10ms mit printf
             { 
-               //Serial.printf("%d \t",buffer[i]);
+               Serial.printf("%d \t",buffer[i]);
             }
-            //Serial.printf("\n");
+            Serial.printf("\n");
             sendbuffer[24] =  buffer[32];
             
             uint8_t indexh=buffer[26];
@@ -2041,17 +2550,22 @@ if (sinceusb > 100)
             //Serial.printf("indexh: %d indexl: %d pfeiltag: %d\n",indexh,indexl,pfeiltag);
             abschnittnummer= indexh<<8;
             abschnittnummer += indexl;
-            //Serial.printf("abschnittnummer: *%d*\n",abschnittnummer);
+            Serial.printf("DE abschnittnummer: *%d*\n",abschnittnummer);
             sendbuffer[5]=(abschnittnummer & 0xFF00) >> 8;;
             sendbuffer[6]=abschnittnummer & 0x00FF;
             
-            // Lage:
+     //       if (anschlagstatus & (1<<NULLPUNKT_C))
+            {
+    //           motor_C_checkNullpunkt();
+            }
+            
+             // Lage:
             
             uint8_t lage = buffer[25];
             
-            uint8_t mausstatus = buffer[40];
+            uint8_t mausstatus = buffer[43];
+            Serial.printf("DE mausstatus: %d \n",mausstatus) ;
             
-            /*
             if (mausstatus & (1<<2))
             {
                repeatcounter = 0;
@@ -2060,11 +2574,14 @@ if (sinceusb > 100)
                { 
                   //                 Serial.printf("%d \t",buffer[i]);
                   CNCDaten[0][i]=buffer[i];  
+               
+               
                }
+               // Check nullpunkt
 
             }
 
-            */
+            
            
             if (mausstatus & (1<<1)) // bit gesetzt
             {
@@ -2073,7 +2590,7 @@ if (sinceusb > 100)
              else
             {
                repeatcounter = 0; // mouseup
-               //Serial.printf("***********************     ********     DC repeatcounter 0: %d mouseup  \n",repeatcounter);
+               Serial.printf("***********************     ********     DE repeatcounter 0: %d mouseup  \n",repeatcounter);
                digitalWriteFast(MA_EN,HIGH);
                digitalWriteFast(MB_EN,HIGH);
                digitalWriteFast(MC_EN,HIGH);
@@ -2081,7 +2598,7 @@ if (sinceusb > 100)
                controller.stopAsync();
                motor_A.setTargetRel(0);
                motor_B.setTargetRel(0);
-               motor_C.setTargetRel(0);
+    //           motor_C.setTargetRel(0);
 
             }
             //Serial.printf("DE  **********  mausstatus(37) %d repeatcounter: %d\n",mausstatus,repeatcounter);
@@ -2095,7 +2612,7 @@ if (sinceusb > 100)
                //Serial.printf("DC abschnittnummer 0\n");
                //Serial.printf("DC abschnittnummer 0 \tbuffer25 lage: %d \t buffer32 device: %d\n",buffer[25],buffer[32]);
                //             Serial.printf("count: %d\n",buffer[22]);
-               //PWM= buffer[29];
+               //PWM= buffer[PWM_BIT];
                //              lcd.print(String(PWM));
                
                ladeposition=0;
