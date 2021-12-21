@@ -1907,6 +1907,14 @@ void loop()
 #  pragma mark motor finished
    if (sincelaststep > 50) // 50 us
    {
+      tastencounter++;
+      if (tastencounter > 10)
+      {
+         tastencounter = 0;
+         taste = readTastatur();
+         tastenfunktion(taste);
+      }
+
       //uint32_t speed = controller.getCurrentSpeed();
       if (controller.isRunning())
       {
@@ -1914,6 +1922,7 @@ void loop()
          //uint8_t ri = digitalReadFast(MA_RI);
          //Serial.printf("Richtung A: %d\n",ri);
          //digitalWriteFast(DC_PWM_PIN, PWM);
+ 
       }
       else
       {
