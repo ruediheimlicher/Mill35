@@ -167,7 +167,7 @@ volatile uint8_t           repeatstatus=0; // Bits fuer repeat Pfeiltasten
 
 volatile uint8_t           status=0;
 
-volatile uint8_t           PWM=96;
+volatile uint8_t           PWM=30;
 static volatile uint8_t    pwmposition=0;
 static volatile uint8_t    pwmdivider=0;
 
@@ -2871,10 +2871,22 @@ if (sinceusb > 100)
          case 0xD8:
             // PWM
          {
-            PWM = buffer[29];
+            PWM = buffer[PWM_BIT];
             analogWrite(DC_PWM_PIN,PWM + 1); // 256 ist 100%
             //Serial.printf("D8 PWM: %d\n",PWM);
          }break;
+            
+#pragma mark DA      MOTOR
+         case 0xDA:
+            // Motor
+         {
+            drillspeed = buffer[DRILL_BIT];
+            analogWrite(DRILL_PIN,drillspeed); // 256 ist 100%
+            //Serial.printf("D8 PWM: %d\n",PWM);
+         }break;
+                  
+            
+            
             
 #pragma mark                    CA             
          case 0xCA: // goto Zeile Kopie BA

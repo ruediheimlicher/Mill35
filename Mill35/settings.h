@@ -51,6 +51,9 @@
 #define DC_PWM_PIN            35
 #define DRILL_PIN            36
 
+
+
+
 // Tastatur
 #define ANALOGTASTATUR     22
 
@@ -70,6 +73,8 @@
 #define HALT_PIN           30
 
 
+#define DRILL_BIT  28
+#define PWM_BIT  29
 
 
 
