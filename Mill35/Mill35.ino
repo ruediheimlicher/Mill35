@@ -808,6 +808,7 @@ uint8_t  RepeatAbschnittLaden_TS(const uint8_t* AbschnittDaten) // 22us
    {
       //Serial.printf("StepCounterB: Vorzeichen negativ\n");
       StepCounterB *= -1;
+      
    }
    else
    {
