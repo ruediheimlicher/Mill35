@@ -2780,7 +2780,7 @@ void loop()
             uint8_t i=0;
             for(i=0;i<48;i++) // 5 us ohne printf, 10ms mit printf
             { 
-               Serial.printf("%d \t",buffer[i]);
+               Serial.printf("*%d* \t",buffer[i]);
             }
             Serial.printf("\n");
             sendbuffer[24] =  buffer[32];
@@ -2789,7 +2789,7 @@ void loop()
             uint8_t indexl=buffer[27];
             
             uint8_t pfeiltag = buffer[38];
-            //Serial.printf("indexh: %d indexl: %d pfeiltag: %d\n",indexh,indexl,pfeiltag);
+            Serial.printf("indexh: %d indexl: %d pfeiltag: %d\n",indexh,indexl,pfeiltag);
             abschnittnummer= indexh<<8;
             abschnittnummer += indexl;
             Serial.printf("DE abschnittnummer: *%d*\n",abschnittnummer);
