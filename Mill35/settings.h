@@ -47,9 +47,9 @@
 #define END_C1_PIN         21  
 
 // neu 3.5:
-#define STROM_PIN             24
-#define DC_PWM_PIN            35
-#define DRILL_PIN            36
+#define CS1_PIN       24 // SPI 2
+#define LED_PWM_PIN      35
+#define DRILL_PWM_PIN       36
 
 
 
@@ -70,8 +70,7 @@
 #define MILL_UP_PIN        28
 #define MILL_DOWN_PIN      29
 
-#define HALT_PIN           30
-
+#define HALT_PIN           32
 
 #define DRILL_BIT  28
 #define PWM_BIT  29

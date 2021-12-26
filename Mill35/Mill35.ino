@@ -1696,11 +1696,11 @@ void setup()
    pinMode(LOOPLED, OUTPUT);
    
    
- //  pinMode(DC_PWM_PIN, OUTPUT);
-//   digitalWriteFast(DC_PWM_PIN, HIGH); // OFF
+ //  pinMode(LED_PWM_PIN, OUTPUT);
+//   digitalWriteFast(LED_PWM_PIN, HIGH); // OFF
    
-   pinMode(STROM_PIN, OUTPUT);
-   digitalWriteFast(STROM_PIN, HIGH); // LO, OFF
+//   pinMode(STROM_PIN, OUTPUT);
+//   digitalWriteFast(STROM_PIN, HIGH); // LO, OFF
    
    
    // init Pins
@@ -1763,8 +1763,8 @@ void setup()
 
    pinMode(HALT_PIN, INPUT_PULLUP);
    
-   pinMode(DC_PWM_PIN,OUTPUT);
-   analogWrite(DC_PWM_PIN,0xFF ); // 256 ist 100%
+   pinMode(LED_PWM_PIN,OUTPUT);
+   analogWrite(LED_PWM_PIN,0xFF ); // 256 ist 100%
    
  //  if (TEST)
    {
@@ -1921,7 +1921,7 @@ void loop()
          //Serial.printf("motor running\n");
          //uint8_t ri = digitalReadFast(MA_RI);
          //Serial.printf("Richtung A: %d\n",ri);
-         //digitalWriteFast(DC_PWM_PIN, PWM);
+         //digitalWriteFast(LED_PWM_PIN, PWM);
  
       }
       else
@@ -1930,7 +1930,7 @@ void loop()
          {
             //Serial.printf("motor finished \t\t\t START code: %d\n",code);
             Serial.printf("motor finished\n");
-            //digitalWriteFast(DC_PWM_PIN, 0);
+            //digitalWriteFast(LED_PWM_PIN, 0);
             
             uint8_t ri = digitalReadFast(MA_RI);
             //Serial.printf("Richtung A: %d",ri);
@@ -2872,7 +2872,7 @@ if (sinceusb > 100)
             // PWM
          {
             PWM = buffer[PWM_BIT];
-            analogWrite(DC_PWM_PIN,PWM + 1); // 256 ist 100%
+            analogWrite(LED_PWM_PIN,PWM + 1); // 256 ist 100%
             //Serial.printf("D8 PWM: %d\n",PWM);
          }break;
             
@@ -2881,7 +2881,7 @@ if (sinceusb > 100)
             // Motor
          {
             drillspeed = buffer[DRILL_BIT];
-            analogWrite(DRILL_PIN,drillspeed); // 256 ist 100%
+            analogWrite(DRILL_PWM_PIN,drillspeed); // 256 ist 100%
             //Serial.printf("D8 PWM: %d\n",PWM);
          }break;
                   
@@ -2988,11 +2988,11 @@ if (sinceusb > 100)
             
             AbschnittCounter=0;
             PWM = sendbuffer[29];
-            //CMD_PORT &= ~(1<<DC_PWM_PIN);
+            //CMD_PORT &= ~(1<<LED_PWM_PIN);
             
             
             
-            //digitalWriteFast(DC_PWM_PIN,HIGH);
+            //digitalWriteFast(LED_PWM_PIN,HIGH);
             
             
             StepCounterA=0;
@@ -3005,13 +3005,7 @@ if (sinceusb > 100)
             CounterC=0;
             CounterD=0;
             
-            /*
-             STEPPERPORT_1 |= (1<<MA_EN); // Pololu OFF
-             STEPPERPORT_1 |= (1<<MB_EN); // Pololu OFF
-             STEPPERPORT_2 |= (1<<MC_EN); // Pololu OFF
-             STEPPERPORT_2 |= (1<<MD_EN); // Pololu OFF
-             */
-            
+              
             controller.stopAsync();
             motor_A.setTargetRel(0);
             motor_B.setTargetRel(0);
@@ -3030,16 +3024,16 @@ if (sinceusb > 100)
             Serial.printf("E0 Stop END\n");
          }break;
             
-            
-         case 0xE2: // DC_PWM_PIN ON_OFF: Temperatur Schneiddraht setzen
+         /*   
+         case 0xE2: // LED_PWM_PIN ON_OFF: Temperatur Schneiddraht setzen
          {
             
             PWM = buffer[20];
             Serial.printf("E2 setPWM: %d\n",PWM);
             if (PWM==0) // OFF
             {
-               //CMD_PORT &= ~(1<<DC_PWM_PIN);
-         //      digitalWriteFast(DC_PWM_PIN,LOW);
+               //CMD_PORT &= ~(1<<LED_PWM_PIN);
+         //      digitalWriteFast(LED_PWM_PIN,LOW);
             }
             parallelstatus |= (1<<THREAD_COUNT_BIT);
             
@@ -3068,8 +3062,8 @@ if (sinceusb > 100)
             
             if (PWM==0)
             {
-               //CMD_PORT &= ~(1<<DC_PWM_PIN);
-               //digitalWriteFast(DC_PWM_PIN,LOW);
+               //CMD_PORT &= ~(1<<LED_PWM_PIN);
+               //digitalWriteFast(LED_PWM_PIN,LOW);
             }
             
             
@@ -3081,7 +3075,7 @@ if (sinceusb > 100)
             
          }break;
             
-            
+            */
             
             
             
@@ -3112,8 +3106,8 @@ if (sinceusb > 100)
             
             AbschnittCounter=0;
             PWM = 0;
-            //CMD_PORT &= ~(1<<DC_PWM_PIN);
-   //         digitalWriteFast(DC_PWM_PIN,LOW);
+            //CMD_PORT &= ~(1<<LED_PWM_PIN);
+   //         digitalWriteFast(LED_PWM_PIN,LOW);
             
             StepCounterA=0;
             StepCounterB=0;
