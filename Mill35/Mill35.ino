@@ -200,6 +200,9 @@ volatile uint32_t          StepCounterD=0;   // Zaehler fuer Schritte von Motor 
 
 volatile uint8_t           richtung=0;
 
+
+volatile uint32_t          positionZ = 0;
+
 volatile uint8_t           parallelcounter=0;
 volatile uint8_t           parallelstatus=0; // Status des Thread
 
@@ -859,7 +862,7 @@ uint8_t  AbschnittLaden_TS(const uint8_t* AbschnittDaten) // 22us
    {
       //Serial.printf("StepCounterA: Vorzeichen positiv\n");
    }
-//   Serial.printf("StepCounterA mit VZ: %d\n",StepCounterA);
+   Serial.printf("StepCounterA mit VZ: %d\n",StepCounterA);
    
    // Motor B
    
@@ -875,7 +878,7 @@ uint8_t  AbschnittLaden_TS(const uint8_t* AbschnittDaten) // 22us
    {
       //Serial.printf("StepCounterB: Vorzeichen positiv\n");
    }
-//   Serial.printf("StepCounterB mit VZ: %d\n",StepCounterB);
+   Serial.printf("StepCounterB mit VZ: %d\n",StepCounterB);
 
  
    
@@ -1508,6 +1511,7 @@ void tastenfunktion(uint16_t Tastenwert)
                case 10: // set Nullpunkt
                {
                   Serial.printf("Taste 10\n");
+                  break;
                   uint32_t pos_A = motor_A.getPosition();
                   
                   uint32_t pos_B = motor_B.getPosition();
@@ -1928,7 +1932,7 @@ void loop()
       {
          if (controllerstatus & (1<<RUNNING)) // Running gerade beendet
          {
-            //Serial.printf("motor finished \t\t\t START code: %d\n",code);
+            Serial.printf("motor finished \t\t\t START code: %d\n",code);
             Serial.printf("motor finished\n");
             //digitalWriteFast(LED_PWM_PIN, 0);
             
@@ -1939,6 +1943,8 @@ void loop()
             controller.stopAsync();
             motor_A.setTargetRel(0);
             motor_B.setTargetRel(0);
+            uint32_t lastZ = motor_C.getPosition();
+            Serial.printf("Motor C pos: %d",lastZ);
             motor_C.setTargetRel(0);
             
             digitalWriteFast(MA_EN,HIGH);
@@ -2084,7 +2090,7 @@ if (sinceusb > 100)
       
       PWM = buffer[29]    +1;
       
-      //Serial.printf("\n***************************************  --->    rawhid_recv start code HEX: %02X\n",code);
+      Serial.printf("\n***************************************  --->    rawhid_recv start code HEX: %02X\n",code);
       //Serial.printf("code: %d\n",code);
       usb_recv_counter++;
       //     lcd.setCursor(10,1);
@@ -2247,7 +2253,7 @@ if (sinceusb > 100)
             
             
  #pragma mark B7             
-         case 0xB7: // report_move_Drill (wie BA)
+         case 0xB7: // report_move_Drill 
          {
             Serial.printf("\nB7 \n");
             sendbuffer[0]=0xB9;
@@ -2392,6 +2398,16 @@ if (sinceusb > 100)
             //Serial.printf("         BA END\n\n");
          }break;
             
+#pragma mark   BC          set Nullpunkt   
+         case 0xBC:
+         {  
+            
+            uint32_t nullpos = motor_C.getPosition();
+            Serial.printf("BC nullpos: %d",nullpos);  
+            motor_C.setPosition(0);
+            
+         }break;
+
 #pragma mark   DC                  TeensyStep           
          case 0xDC:
          {
@@ -2872,8 +2888,8 @@ if (sinceusb > 100)
             // PWM
          {
             PWM = buffer[PWM_BIT];
-            analogWrite(LED_PWM_PIN,PWM + 1); // 256 ist 100%
-            //Serial.printf("D8 PWM: %d\n",PWM);
+            analogWrite(LED_PWM_PIN,PWM); // 256 ist 100%
+            Serial.printf("D8 PWM: %d\n",PWM);
          }break;
             
 #pragma mark DA      MOTOR
@@ -2882,7 +2898,7 @@ if (sinceusb > 100)
          {
             drillspeed = buffer[DRILL_BIT];
             analogWrite(DRILL_PWM_PIN,drillspeed); // 256 ist 100%
-            //Serial.printf("D8 PWM: %d\n",PWM);
+            Serial.printf("DA Motor: %d\n",drillspeed);
          }break;
                   
             

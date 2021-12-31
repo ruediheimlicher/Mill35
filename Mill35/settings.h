@@ -48,7 +48,7 @@
 
 // neu 3.5:
 #define CS1_PIN       24 // SPI 2
-#define LED_PWM_PIN      35
+#define LED_PWM_PIN       35
 #define DRILL_PWM_PIN       36
 
 
