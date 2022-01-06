@@ -1,3 +1,4 @@
+
 //#include <Wire.h>
 //#include <WireIMXRT.h>
 //#include <WireKinetis.h>
@@ -251,7 +252,7 @@ Stepper motor_A(schrittA, richtungA);   //STEP pin =  2, DIR pin = 3
 Stepper motor_B(schrittB, richtungB);   //STEP pin =  9, DIR pin = 10
 Stepper motor_C(schrittC, richtungC);  //STEP pin = 14, DIR pin = 15
 
-int speedA =3000;
+int speedA =4000;
 int speedB = speedA;
 int speedC = 3000;
 int AccelerationA = 6000;
@@ -1769,6 +1770,9 @@ void setup()
    
    pinMode(LED_PWM_PIN,OUTPUT);
    analogWrite(LED_PWM_PIN,0xFF ); // 256 ist 100%
+
+   pinMode(DRILL_PWM_PIN,OUTPUT);
+   analogWrite(DRILL_PWM_PIN,0x00 ); // 256 ist 100%
    
  //  if (TEST)
    {
