@@ -32,7 +32,7 @@
 #define MC_RI              7
 #define MC_EN              8
 
-         
+#define BLINKLED           9     
 
 // 10,11,12,13: SPI
 
@@ -47,8 +47,8 @@
 #define END_C1_PIN         21  
 
 // neu 3.5:
-#define CS1_PIN       24 // SPI 2
-#define LED_PWM_PIN       36
+#define CS1_PIN            24 // SPI 2
+#define LED_PWM_PIN        36
 #define DRILL_PWM_PIN       35
 
 
