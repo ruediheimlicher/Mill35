@@ -86,7 +86,7 @@ volatile uint16_t          cnc_recv_counter=0;
 elapsedMillis sinceblink;
 elapsedMillis sincelcd;
 elapsedMicros sinceusb;
-uint16_t cncdelaycounter = 0
+uint16_t cncdelaycounter = 0;
 
 elapsedMillis sinceload; // Zeitdauer der Anzeige des Potentialwertes
 
@@ -729,7 +729,8 @@ uint8_t  RepeatAbschnittLaden_TS(const uint8_t* AbschnittDaten) // 22us
    uint32_t dB = StepCounterB;
    uint32_t dC = StepCounterC;
    
-   Serial.printf("da: %d dB: %d dC: %d\n",dA,dB,dC);   motor_A.setTargetRel(dA);
+   Serial.printf("da: %d dB: %d dC: %d\n",dA,dB,dC);   
+   motor_A.setTargetRel(dA);
    motor_B.setTargetRel(dB);
    motor_C.setTargetRel(dC);
    Serial.printf("repeatcounter: %d\n",repeatcounter);
@@ -1694,6 +1695,14 @@ void C1_ISR(void)
 
 }
 
+void OSZIA_HI(void)
+{
+   digitalWriteFast(OSZI_PULS_A, HIGH); 
+}
+void OSZIA_LO(void)
+{
+   digitalWriteFast(OSZI_PULS_A, LOW); 
+}
 
 
 void setup()
@@ -1780,6 +1789,9 @@ void setup()
    {
       pinMode(OSZI_PULS_A, OUTPUT);
       digitalWriteFast(OSZI_PULS_A, HIGH); 
+
+      pinMode(OSZI_PULS_B, OUTPUT);
+      digitalWriteFast(OSZI_PULS_B, HIGH); 
    }
    
    delay(100);
@@ -1918,10 +1930,20 @@ void loop()
 #  pragma mark motor finished
    if (sincelaststep > 50) // 50 us
    {
-      //cncdelaycounter += 1;
-      if (++cncdelaycounter > 10)
+     // digitalWriteFast(OSZI_PULS_A, LOW); 
+      
+      cncdelaycounter += 1;
+      
+      if (cncdelaycounter )
+      {
+         
+         OSZIA_HI();
+      }
+      if (cncdelaycounter > 10)
       {
          cncdelaycounter = 0;
+         OSZIA_LO();
+         
       }
       tastencounter++;
       if (tastencounter > 10)
@@ -2081,7 +2103,7 @@ void loop()
       sincelaststep = 0;
       //     timerfunction();
 //      digitalWriteFast(STROM_PIN,0); 
-
+      
    } // sincelaststep > 100
    
 
@@ -2623,6 +2645,7 @@ if (sinceusb > 100)
             if (mausstatus & (1<<1)) // bit gesetzt
             {
                repeatcounter++;
+               
             }
              else
             {
@@ -2633,8 +2656,9 @@ if (sinceusb > 100)
                digitalWriteFast(MC_EN,HIGH);
                
                controller.stopAsync();
-               motor_A.setTargetRel(0);
-               motor_B.setTargetRel(0);
+               
+     //          motor_A.setTargetRel(0);
+     //          motor_B.setTargetRel(0);
     //           motor_C.setTargetRel(0);
 
             }
@@ -2681,22 +2705,6 @@ if (sinceusb > 100)
                sendbuffer[0]=0xDC;
                //               Serial.printf("------------------------------------->  first abschnitt, endposition: %d\n",endposition);
                
-               /*
-                if (code == 0xF0) // cncstatus fuer go_home setzen
-                {
-                
-                sendbuffer[0]=0x45;
-                
-                cncstatus |= (1<<GO_HOME); // Bit fuer go_home setzen
-                usb_rawhid_send((void*)sendbuffer, 50);
-                }
-                else if (code == 0xF1)
-                {
-                sendbuffer[0]=0x44;
-                cncstatus &= ~(1<<GO_HOME); // Bit fuer go_home zuruecksetzen
-                usb_rawhid_send((void*)sendbuffer, 50);
-                }
-                */
                // Abschnitt 0 melden
                
                RawHID.send(sendbuffer, 50);

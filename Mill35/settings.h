@@ -61,7 +61,7 @@
 
 
 
-
+/*
 #define UP_PIN             24
 #define DOWN_PIN           25
 #define LEFT_PIN           26
@@ -69,7 +69,7 @@
 
 #define MILL_UP_PIN        28
 #define MILL_DOWN_PIN      29
-
+*/
 #define HALT_PIN           32
 
 #define DRILL_BIT  28
@@ -147,8 +147,8 @@
 #define FIRSTBIT           7
 
 
-#define OSZI_PULS_A        24
-#define OSZI_PULS_B        25
+#define OSZI_PULS_A        25
+#define OSZI_PULS_B        26
 
 
 #define THREAD_COUNT_BIT   0
