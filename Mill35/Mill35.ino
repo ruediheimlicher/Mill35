@@ -1935,7 +1935,7 @@ void loop()
                case 22: // Drill UP
                {
                   digitalWriteFast(MC_EN,LOW);
-                  digitalWriteFast(MC_RI,LOW);
+                  digitalWriteFast(MC_RI,HIGH);
                   digitalWriteFast(MC_STEP,LOW);
                   //Serial.printf("loop  Drill UP\n");
                   //dz = schrittweite 
@@ -1945,7 +1945,7 @@ void loop()
                case 24: // Drill DOWN
                {
                   digitalWriteFast(MC_EN,LOW);
-                  digitalWriteFast(MC_RI,HIGH);
+                  digitalWriteFast(MC_RI,LOW);
                   digitalWriteFast(MC_STEP,LOW);
                   //Serial.printf("loop  Drill DOWN\n");
                   //dz = schrittweite * (-1)
