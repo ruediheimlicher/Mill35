@@ -94,6 +94,8 @@ elapsedMicros sincelaststep;
 
 elapsedMillis sincelastthread;
 
+elapsedMicros sincelastimpuls;
+
 // Prototypes
 
 static volatile uint8_t buffer[USB_DATENBREITE]={};   // Daten von usb
@@ -148,6 +150,7 @@ volatile uint8_t           cncstatus=0x00;
 volatile uint8_t           sendstatus=0x00;
 
 volatile uint8_t           drillstatus=0x00;
+volatile uint8_t            pfeiltastecode = 0;
 
 volatile uint8_t           drillupdownstatus=0x00; // Drilltaste
 #define DRILLTASTE_UP  1
@@ -1877,6 +1880,114 @@ void loop()
       controllerstatus &= ~(1<<RUNNING);
       repeatcounter = 0;
    }
+   if (sincelastimpuls > 100)
+   {
+      sincelastimpuls = 0;
+      if (pfeiltastecode)
+      {
+         cncdelaycounter += 1;
+         
+         if (cncdelaycounter >9)
+         {
+            
+            OSZIA_HI();
+            
+            switch (pfeiltastecode)
+            {
+               case 1: // right
+               {
+                  //Serial.printf("loop  right\n");
+                  digitalWriteFast(MA_EN,LOW);
+                  digitalWriteFast(MA_RI,LOW);
+                  digitalWriteFast(MA_STEP,LOW);
+                  //dx = schrittweite
+               }break;
+                  
+               case 2: // up
+               {
+                  //Serial.printf("loop  up\n");
+                  digitalWriteFast(MB_EN,LOW);
+                  digitalWriteFast(MB_RI,LOW);
+                  digitalWriteFast(MB_STEP,LOW);
+                  //dy = schrittweite
+               }break;
+                   
+               case 3: // left
+               {
+                  //Serial.printf("loop  left\n");
+                  digitalWriteFast(MA_EN,LOW);
+                  digitalWriteFast(MA_RI,HIGH);
+                  digitalWriteFast(MA_STEP,LOW);
+                  //dx = schrittweite * (-1)
+                  //vorzeichenx = 1
+               }break;
+                  
+               case 4: // down
+               {
+                  //Serial.printf("loop  down\n");
+                  digitalWriteFast(MB_EN,LOW);
+                  digitalWriteFast(MB_RI,HIGH);
+                  digitalWriteFast(MB_STEP,LOW);
+                  //dy = schrittweite * (-1)
+                  //vorzeicheny = 1
+               }break;
+                  
+               case 22: // Drill UP
+               {
+                  digitalWriteFast(MC_EN,LOW);
+                  digitalWriteFast(MC_RI,LOW);
+                  digitalWriteFast(MC_STEP,LOW);
+                  //Serial.printf("loop  Drill UP\n");
+                  //dz = schrittweite 
+                  
+               }break;  
+                  
+               case 24: // Drill DOWN
+               {
+                  digitalWriteFast(MC_EN,LOW);
+                  digitalWriteFast(MC_RI,HIGH);
+                  digitalWriteFast(MC_STEP,LOW);
+                  //Serial.printf("loop  Drill DOWN\n");
+                  //dz = schrittweite * (-1)
+                  //vorzeichenz = 1
+               }break;  
+                  
+                 /*
+               case 26: // Drill StepDOWN
+               {
+                  digitalWriteFast(MC_EN,LOW);
+                  Serial.printf("loop  Drill STEP UP\n");
+                  //dz = drillwegFeld.integerValue
+                  //vorzeichenz = 1
+                  //mausstatus |= (1<<2);
+               }break;   
+                  
+               case 28: // Drill StepUP
+               {
+                  digitalWriteFast(MC_EN,LOW);
+                  Serial.printf("loop  Drill STEP DOWN\n");
+                  //dz = drillwegFeld.integerValue * (-1)
+                  //mausstatus |= (1<<2);
+               }break;
+                  */
+                  
+            }// switch pfeiltag
+
+         }
+         if (cncdelaycounter > 10)
+         {
+            cncdelaycounter = 0;
+            OSZIA_LO();
+            digitalWriteFast(MA_STEP,HIGH);
+            digitalWriteFast(MB_STEP,HIGH);
+            digitalWriteFast(MC_STEP,HIGH);
+            
+            
+            
+         }
+      } // if (pfeiltastecode)
+
+   }// if (sincelastimpuls
 
    if (sinceblink > 500) 
    {   
@@ -1886,6 +1997,10 @@ void loop()
       //scanI2C(100000);
       //loopLED++;
       sinceblink = 0;
+      
+      // ****
+
+      // ****
       
       //      lcd.setCursor(0,1);
       //      lcd.print(String(loopLED));
@@ -1930,21 +2045,10 @@ void loop()
 #  pragma mark motor finished
    if (sincelaststep > 50) // 50 us
    {
+      
      // digitalWriteFast(OSZI_PULS_A, LOW); 
       
-      cncdelaycounter += 1;
       
-      if (cncdelaycounter )
-      {
-         
-         OSZIA_HI();
-      }
-      if (cncdelaycounter > 10)
-      {
-         cncdelaycounter = 0;
-         OSZIA_LO();
-         
-      }
       tastencounter++;
       if (tastencounter > 10)
       {
@@ -2775,6 +2879,110 @@ if (sinceusb > 100)
             interrupts();
          }break;
 
+#pragma mark   DF            Pfeiltaste      Steps          
+         case 0xDF:
+         {
+            Serial.printf("* DF Steps code: %d Device: %d\n",code, device,repeatcounter);
+            uint8_t i=0;
+           // for(i=0;i<48;i++) // 5 us ohne printf, 10ms mit printf
+            { 
+           //    Serial.printf("%d \t",buffer[i]);
+            }
+           // Serial.printf("\n");
+            sendbuffer[24] =  buffer[32];
+            
+            uint8_t indexh=buffer[26];
+            uint8_t indexl=buffer[27];
+            
+            uint8_t pfeiltag = buffer[38];
+            Serial.printf("indexh: %d indexl: %d pfeiltag: %d\n",indexh,indexl,pfeiltag);
+            abschnittnummer= indexh<<8;
+            abschnittnummer += indexl;
+            Serial.printf("DF abschnittnummer: *%d*\n",abschnittnummer);
+            sendbuffer[5]=(abschnittnummer & 0xFF00) >> 8;;
+            sendbuffer[6]=abschnittnummer & 0x00FF;
+            uint8_t lage = buffer[25];
+            
+            uint8_t mausstatus = buffer[43];
+            Serial.printf("DF mausstatus: %d lage: %d\n",mausstatus,lage) ;
+
+            if (mausstatus & (1<<1)) // bit gesetzt, Impulse senden
+            {
+               pfeiltastecode = pfeiltag;
+               
+               switch (pfeiltastecode)
+               {
+               case 1: // right
+                  {
+                     Serial.printf("DF  right\n");
+                     //dx = schrittweite
+                  }break;
+               case 2: // up
+                  {
+                     Serial.printf("DF  up\n");
+                     //dy = schrittweite
+                  }break;
+               case 3: // left
+                  {
+                     Serial.printf("DF  left\n");
+                     //dx = schrittweite * (-1)
+                     //vorzeichenx = 1
+                  }break;
+               case 4: // down
+                  {
+                     Serial.printf("DF  down\n");
+                     //dy = schrittweite * (-1)
+                     //vorzeicheny = 1
+                  }break;
+                  
+               case 22: // Drill UP
+                  {
+                     Serial.printf("loop  Drill UP\n");
+                     //dz = schrittweite 
+                     
+                  }break;   
+               case 24: // Drill DOWN
+                  {
+                     Serial.printf("loop  Drill DOWN\n");
+                     //dz = schrittweite * (-1)
+                     //vorzeichenz = 1
+                  }break;  
+                  
+                  
+               case 26: // Drill StepDOWN
+                  {
+                     Serial.printf("loop  Drill STEP UP\n");
+                     //dz = drillwegFeld.integerValue
+                     //vorzeichenz = 1
+                     mausstatus |= (1<<2);
+                  }break;   
+                  
+               case 28: // Drill StepUP
+                  {
+                     Serial.printf("mausstatusAktion  Drill STEP DOWN\n");
+                     //dz = drillwegFeld.integerValue * (-1)
+                     mausstatus |= (1<<2);
+                  }break;
+                  
+                  
+               }// switch pfeiltag
+               
+            }
+             else
+            {
+               pfeiltastecode = 0;
+               Serial.printf("***********************     ********     DF   mouseup  \n");
+               digitalWriteFast(MA_EN,HIGH);
+               digitalWriteFast(MB_EN,HIGH);
+               digitalWriteFast(MC_EN,HIGH);
+               digitalWriteFast(MA_STEP,HIGH);
+               digitalWriteFast(MB_STEP,HIGH);
+               digitalWriteFast(MC_STEP,HIGH);
+
+               
+            }
+            
+         }
 #pragma mark D5               
          case 0xD5: // PCB Start neue Datenserie, von send_Daten
          {
@@ -3820,9 +4028,12 @@ if (sinceusb > 100)
             
          default:
          {
-            //Serial.printf(" CNC-routine startbit default loop AbschnittLaden_TM\n");
-            lage=AbschnittLaden_TS(CNCDaten[ladeposition]); // erster Wert im Ringbuffer
-            //Serial.printf("startbit default AbschnittLaden_TM end\n");
+            Serial.printf(" CNC-routine startbit default loop AbschnittLaden_Ts\n");
+            if (pfeiltastecode == 0) // keine Pfeiltaste
+            {
+ //           lage=AbschnittLaden_TS(CNCDaten[ladeposition]); // erster Wert im Ringbuffer
+            }
+            Serial.printf("startbit default AbschnittLaden_TM end\n");
          }break;
 
             
