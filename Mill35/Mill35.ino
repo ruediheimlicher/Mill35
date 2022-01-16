@@ -96,6 +96,7 @@ elapsedMillis sincelastthread;
 
 elapsedMicros sincelastimpuls;
 
+
 // Prototypes
 
 static volatile uint8_t buffer[USB_DATENBREITE]={};   // Daten von usb
@@ -183,6 +184,12 @@ volatile uint16_t           defaultcounter =0;
 volatile uint32_t             taskzeit = 0;
 volatile uint32_t             waitzeit = 0;
 
+volatile uint16_t           pfeilimpulsdauer = 0;
+volatile uint16_t           pfeilrampcounter = 0;
+volatile uint16_t           pfeilrampdelay = 0;
+volatile uint8_t            endimpulsdauer = ENDIMPULSDAUER;
+
+
 elapsedMillis           tasktime =0;
 elapsedMillis           waittime =0;
 
@@ -256,7 +263,7 @@ Stepper motor_A(schrittA, richtungA);   //STEP pin =  2, DIR pin = 3
 Stepper motor_B(schrittB, richtungB);   //STEP pin =  9, DIR pin = 10
 Stepper motor_C(schrittC, richtungC);  //STEP pin = 14, DIR pin = 15
 
-int speedA =3000;
+int speedA =4000;
 int speedB = speedA;
 int speedC = 2400;
 int AccelerationA = 6000;
@@ -352,6 +359,75 @@ void debounce_switch(uint8_t port)
    {
       debounceindex = 0;
    }
+   
+}
+
+
+void stopTask(uint8_t emergency) // reset
+{
+   Serial.printf("stoptask\n");
+   ringbufferstatus = 0;
+   motorstatus=0;
+   anschlagstatus = 0;
+   cncstatus = 0;
+   sendbuffer[0]=0xE1;
+   
+   sendbuffer[5]=(abschnittnummer & 0xFF00) >> 8;;
+   sendbuffer[6]=abschnittnummer & 0x00FF;
+   
+   sendbuffer[8]=ladeposition & 0x00FF;
+   sendbuffer[7]=(ladeposition & 0xFF00) >> 8;
+   RawHID.send(sendbuffer, 50);
+   sendbuffer[0]=0x00;
+   sendbuffer[5]=0x00;
+   sendbuffer[6]=0x00;
+   sendbuffer[8]=0x00;
+   
+   
+   uint8_t i=0, k=0;
+   for (k=0;k<RINGBUFFERTIEFE;k++)
+   {
+      for(i=0;i<USB_DATENBREITE;i++)
+      {
+         CNCDaten[k][i]=0;  
+      }
+   }
+   drillstatus = 0;
+   
+   pfeiltastecode = 0;
+   endimpulsdauer = ENDIMPULSDAUER;
+   
+   ladeposition=0;
+   endposition=0xFFFF;
+   
+   AbschnittCounter=0;
+   PWM = 0;
+   
+   // Drillmotor abstellen
+   drillspeed = 0;
+   analogWrite(DRILL_PWM_PIN,drillspeed); 
+   
+   if (emergency == 1)
+   {
+      controller.emergencyStop();
+   }
+   else
+   {
+      controller.stopAsync();
+   }
+   motor_A.setTargetRel(0);
+   motor_B.setTargetRel(0);
+   motor_C.setTargetRel(0);
+   controllerstatus &= ~(1<<RUNNING);
+   
+   digitalWriteFast(MA_EN,HIGH);
+   digitalWriteFast(MB_EN,HIGH);
+   digitalWriteFast(MC_EN,HIGH);
+   
+   digitalWriteFast(MA_STEP,HIGH);
+   digitalWriteFast(MB_STEP,HIGH);
+   digitalWriteFast(MC_STEP,HIGH);
+   
    
 }
 
@@ -1357,65 +1433,86 @@ void tastenfunktion(uint16_t Tastenwert)
                   motor_C.setTargetAbs(800);
                   digitalWriteFast(MC_EN,LOW);
                   controller.move(motor_C);
-
+                  
                }
                   break;
                   
                case 2:     // up                             //   Menu vorwaertsschalten   
                {
-                  uint8_t lage = AbschnittLaden_TS(pfeil4);
-                  switch (Menu_Ebene & 0xF0)               //   Bits 7-4, Menu_Ebene
+                  //uint8_t lage = AbschnittLaden_TS(pfeil4);
+                  if (pfeiltastecode == 0)
                   {
-                     case 0x00:                        //   oberste Ebene, Raeume
-                     {
-                        
-                     }
-                        break;
-                        
-                     case 0x10:                        // erste Unterebene, Thema
-                     {
-                     }
-                        break;
-                     case    0x20:                        // zweite Unterebene
-                     {
-                        
-                     }break;
-                  }//switch Menu_Ebene
-                  
-               }
-                  break;
+                     pfeiltastecode = 2;
+                     pfeilimpulsdauer = STARTIMPULSDAUER;
+                     endimpulsdauer = TASTENENDIMPULSDAUER;
+                  }
+                  /*
+                   switch (Menu_Ebene & 0xF0)               //   Bits 7-4, Menu_Ebene
+                   {
+                   case 0x00:                        //   oberste Ebene, Raeume
+                   {
+                   
+                   }
+                   break;
+                   
+                   case 0x10:                        // erste Unterebene, Thema
+                   {
+                   }
+                   break;
+                   case    0x20:                        // zweite Unterebene
+                   {
+                   
+                   }break;
+                   }//switch Menu_Ebene
+                   */
+               }break;
                   
                case 3:   //
                {
-                  uint8_t lage = AbschnittLaden_TS(drillup);
+                  //uint8_t lage = AbschnittLaden_TS(drillup);
+                  if (pfeiltastecode == 0)
+                  {
+                     pfeiltastecode = 22;
+                     pfeilimpulsdauer = STARTIMPULSDAUER;
+                     endimpulsdauer = TASTENENDIMPULSDAUER;
+                  }
                }break;
                   
                case 4:   // left
                {
-                  uint8_t lage = AbschnittLaden_TS(pfeil3);
-                  switch (Menu_Ebene & 0xF0)//Bits 7-4   
+                  //uint8_t lage = AbschnittLaden_TS(pfeil3);
+                  Serial.printf("Tastatur  left\n");
+                  if (pfeiltastecode == 0)
                   {
-                     case 0x00:   //oberste Ebene
-                     {
-                        //err_clr_line(0);
-                        //err_puts("E0\0");
-                        
-                     }break;
-                        
-                     case 0x10: // erste Ebene
-                     {
-                        
-                        
-                     }break;
-                        
-                     case 0x20: // zweite Ebene, Plan
-                     {
-                        
-                     }break;   //   case 0x20
-                        
-                        
-                  }//switch Menu_Ebene & 0xF0
-                  
+                     pfeiltastecode = 3;
+                     pfeilimpulsdauer = STARTIMPULSDAUER+20;
+                     pfeilrampcounter = 0;
+                     endimpulsdauer = TASTENENDIMPULSDAUER;
+                  }
+                  /*
+                   switch (Menu_Ebene & 0xF0)//Bits 7-4   
+                   {
+                   case 0x00:   //oberste Ebene
+                   {
+                   //err_clr_line(0);
+                   //err_puts("E0\0");
+                   
+                   }break;
+                   
+                   case 0x10: // erste Ebene
+                   {
+                   
+                   
+                   }break;
+                   
+                   case 0x20: // zweite Ebene, Plan
+                   {
+                   
+                   }break;   //   case 0x20
+                   
+                   
+                   }//switch Menu_Ebene & 0xF0
+                   */
                } break; // case Vortag
                   
                   
@@ -1447,7 +1544,14 @@ void tastenfunktion(uint16_t Tastenwert)
                   
                case 6: // right
                {
-                  uint8_t lage = AbschnittLaden_TS(pfeil1);
+                  //uint8_t lage = AbschnittLaden_TS(pfeil1);
+                  if (pfeiltastecode == 0)
+                  {
+                     
+                     pfeiltastecode = 1;
+                     pfeilimpulsdauer = STARTIMPULSDAUER;
+                     endimpulsdauer = TASTENENDIMPULSDAUER;
+                  }
                   switch (Menu_Ebene & 0xF0)//Bits 7-4   
                   {
                      case 0x00:   //oberste Ebene
@@ -1480,14 +1584,21 @@ void tastenfunktion(uint16_t Tastenwert)
                   digitalWriteFast(MA_EN,LOW);
                   digitalWriteFast(MB_EN,LOW);
                   controller.move(motor_A, motor_B);
-
+                  
                }
-               break;
+                  break;
                   
                   
                case 8:    // down                                //Menu rueckwaertsschalten
                {
-                  uint8_t lage = AbschnittLaden_TS(pfeil2);
+                  //uint8_t lage = AbschnittLaden_TS(pfeil2);
+                  if (pfeiltastecode == 0)
+                  {
+                     pfeiltastecode = 4;
+                     pfeilimpulsdauer = STARTIMPULSDAUER;
+                     endimpulsdauer = TASTENENDIMPULSDAUER;
+                  }
+                  
                   switch (Menu_Ebene & 0xF0)//Bits 7-4            oberste Ebene, Raeume
                   {
                      case 0x00:
@@ -1509,10 +1620,17 @@ void tastenfunktion(uint16_t Tastenwert)
                   
                case 9:
                {
-                  uint8_t lage = AbschnittLaden_TS(drilldown);
+                  //uint8_t lage = AbschnittLaden_TS(drilldown);
+                  if (pfeiltastecode == 0)
+                  {
+                     pfeiltastecode = 24;
+                     pfeilimpulsdauer = STARTIMPULSDAUER;
+                     endimpulsdauer = TASTENENDIMPULSDAUER;
+                  }
+                  
                }
                   
-               break;
+                  break;
                   
                case 10: // set Nullpunkt
                {
@@ -1522,24 +1640,24 @@ void tastenfunktion(uint16_t Tastenwert)
                   
                   uint32_t pos_B = motor_B.getPosition();
                   Serial.printf("vor reset: pos A: %d pos B: %d\n",pos_A, pos_B);
-
+                  
                   motor_A.setPosition(0);
                   motor_B.setPosition(0);
                   
                   pos_A = motor_A.getPosition();
                   pos_B = motor_B.getPosition();
                   Serial.printf("nach reset: pos A: %d pos B: %d\n",pos_A, pos_B);
-
+                  
                   //motor_C.setTargetAbs(0);
                   //digitalWriteFast(MC_EN,LOW);
                   //controller.move(motor_C);
-
+                  
                }break;
                case 12:// 
                {
                   //STOP
                   
-//                  stopTask(0);
+                  stopTask(0);
                   
                   //Taste=99;
                   
@@ -1585,6 +1703,8 @@ void tastenfunktion(uint16_t Tastenwert)
    {
       if (analogtastaturstatus & (1<<TASTE_ON))
       {
+         pfeiltastecode = 0;
+         endimpulsdauer = ENDIMPULSDAUER;
          //A0_ISR();  
          digitalWriteFast(MA_EN,HIGH);
          digitalWriteFast(MB_EN,HIGH);
@@ -1837,6 +1957,8 @@ void setup()
       Serial.printf("setup END_A1 set\n");
    }
    
+   pfeilimpulsdauer = STARTIMPULSDAUER;
+   
 #  pragma mark TeensyStep setup
    // setup the motors 
    motor_A.setMaxSpeed(speedA);     // steps/s
@@ -1880,8 +2002,18 @@ void loop()
       controllerstatus &= ~(1<<RUNNING);
       repeatcounter = 0;
    }
-   if (sincelastimpuls > 100)
+   
+   if (sincelastimpuls > pfeilimpulsdauer)
    {
+      if (pfeilimpulsdauer > endimpulsdauer)
+      {
+         pfeilrampcounter ++;
+         if (pfeilrampcounter > RAMPDELAY) // delay für Impulsdauer reduzieren
+         {
+            pfeilrampcounter = 0;
+            pfeilimpulsdauer--;
+         }
+      }
       sincelastimpuls = 0;
       if (pfeiltastecode)
       {
@@ -1898,7 +2030,7 @@ void loop()
                {
                   //Serial.printf("loop  right\n");
                   digitalWriteFast(MA_EN,LOW);
-                  digitalWriteFast(MA_RI,LOW);
+                  digitalWriteFast(MA_RI,HIGH);
                   digitalWriteFast(MA_STEP,LOW);
                   //dx = schrittweite
                }break;
@@ -1907,7 +2039,7 @@ void loop()
                {
                   //Serial.printf("loop  up\n");
                   digitalWriteFast(MB_EN,LOW);
-                  digitalWriteFast(MB_RI,LOW);
+                  digitalWriteFast(MB_RI,HIGH);
                   digitalWriteFast(MB_STEP,LOW);
                   //dy = schrittweite
                }break;
@@ -1916,7 +2048,7 @@ void loop()
                {
                   //Serial.printf("loop  left\n");
                   digitalWriteFast(MA_EN,LOW);
-                  digitalWriteFast(MA_RI,HIGH);
+                  digitalWriteFast(MA_RI,LOW);
                   digitalWriteFast(MA_STEP,LOW);
                   //dx = schrittweite * (-1)
                   //vorzeichenx = 1
@@ -1926,7 +2058,7 @@ void loop()
                {
                   //Serial.printf("loop  down\n");
                   digitalWriteFast(MB_EN,LOW);
-                  digitalWriteFast(MB_RI,HIGH);
+                  digitalWriteFast(MB_RI,LOW);
                   digitalWriteFast(MB_STEP,LOW);
                   //dy = schrittweite * (-1)
                   //vorzeicheny = 1
@@ -2904,22 +3036,25 @@ if (sinceusb > 100)
             uint8_t lage = buffer[25];
             
             uint8_t mausstatus = buffer[43];
-            Serial.printf("DF mausstatus: %d lage: %d\n",mausstatus,lage) ;
+            //Serial.printf("DF mausstatus: %d lage: %d\n",mausstatus,lage) ;
 
             if (mausstatus & (1<<1)) // bit gesetzt, Impulse senden
             {
                pfeiltastecode = pfeiltag;
+               pfeilimpulsdauer = STARTIMPULSDAUER;
+               pfeilrampcounter = 0;
+               endimpulsdauer = ENDIMPULSDAUER;
                
                switch (pfeiltastecode)
                {
                case 1: // right
                   {
-                     Serial.printf("DF  right\n");
+                     //Serial.printf("DF  right\n");
                      //dx = schrittweite
                   }break;
                case 2: // up
                   {
-                     Serial.printf("DF  up\n");
+                     //Serial.printf("DF  up\n");
                      //dy = schrittweite
                   }break;
                case 3: // left
@@ -2930,20 +3065,20 @@ if (sinceusb > 100)
                   }break;
                case 4: // down
                   {
-                     Serial.printf("DF  down\n");
+                     //Serial.printf("DF  down\n");
                      //dy = schrittweite * (-1)
                      //vorzeicheny = 1
                   }break;
                   
                case 22: // Drill UP
                   {
-                     Serial.printf("loop  Drill UP\n");
+                     //Serial.printf("loop  Drill UP\n");
                      //dz = schrittweite 
                      
                   }break;   
                case 24: // Drill DOWN
                   {
-                     Serial.printf("loop  Drill DOWN\n");
+                     //Serial.printf("loop  Drill DOWN\n");
                      //dz = schrittweite * (-1)
                      //vorzeichenz = 1
                   }break;  
@@ -3339,6 +3474,8 @@ if (sinceusb > 100)
             }
             drillstatus = 0;
             
+            pfeiltastecode = 0;
+            endimpulsdauer = ENDIMPULSDAUER;
             
             ringbufferstatus = 0;
             motorstatus=0;
@@ -3372,6 +3509,7 @@ if (sinceusb > 100)
             
             digitalWriteFast(MA_STEP,HIGH);
             digitalWriteFast(MB_STEP,HIGH);
+            digitalWriteFast(MC_STEP,HIGH);
             
             //           lcd.setCursor(0,1);
             //           lcd.print("reset\n");
@@ -3390,6 +3528,229 @@ if (sinceusb > 100)
             sendbuffer[0]=0x00;
             
          }break;
+            
+         case 0xD7:
+         {
+            //Serial.printf("***  ***  ***  ***  ***  ***  usb_recv default\n");
+               // Abschnittnummer bestimmen
+            
+            sendbuffer[24] =  buffer[32];
+            
+            uint8_t indexh=buffer[26];
+            uint8_t indexl=buffer[27];
+            
+            abschnittnummer= indexh<<8;
+            abschnittnummer += indexl;
+            
+            // Lage:
+            uint8_t lage = buffer[25];
+            // lage im Ablauf: 
+            // 1: erster Abschnitt
+            // 2: letzter Abschnitt
+            // 3: nur 1 Abschnitt
+            // 0: innerer Abschnitt
+            
+            //OSZI_A_LO();
+            //            Serial.printf("\n\ndefault abschnittnummer: %d  lage: %d code: %d\n",abschnittnummer,lage,code); // 50 us
+            //            for(int i=0;i<48;i++)
+            {
+               //              Serial.printf("%d\t",buffer[i]);
+            }
+            //           Serial.printf("\n");
+            
+             //          Serial.printf("\n****************************************\n");
+             //          Serial.printf("default Abschnitt lage: %d abschnittnummer: %d\n",lage,abschnittnummer);
+            //           Serial.printf("****************************************\n");
+            
+            
+            //Serial.printf("schritteX: \t%d \tschritteY: \t%d\n",schritteX,schritteY);
+            //OSZI_A_HI();
+             //           usb_rawhid_send((void*)sendbuffer, 50); // nicht jedes Paket melden
+            
+               
+                  // xxx
+                  //Serial.printf("default device 1 code: %d abschnittnummer: %d\n",code,abschnittnummer);
+                  
+                  
+                  if (abschnittnummer==0)  // Start
+                  {
+                     //                   //noInterrupts();
+                     //                   Serial.printf("abschnittnummer 0 \t25: %d \t 32: %d\n",buffer[25],buffer[32]);
+                     sendbuffer[24] =  buffer[32];  
+                     //             Serial.printf("count: %d\n",buffer[22]);
+                      PWM= buffer[29];
+                     
+                     ladeposition=0;
+                     //globalaktuelleladeposition = 0;
+                     aktuelleladeposition = 0;
+                     endposition=0xFFFF;
+                     cncstatus = 0;
+                     sendstatus = 0;
+                     motorstatus = 0;
+                     ringbufferstatus=0x00;
+                     //anschlagstatus=0;
+                     ringbufferstatus |= (1<<FIRSTBIT);
+                     ringbufferstatus |= (1<<STARTBIT);
+                     AbschnittCounter=0;
+                     //sendbuffer[8]= versionintl;
+                     //sendbuffer[8]= versioninth;
+                     sendbuffer[5]=(abschnittnummer & 0xFF00) >> 8;;
+                     sendbuffer[6]=abschnittnummer & 0x00FF;
+                     
+                     //lcd_gotoxy(0,0);
+                     sendbuffer[14] = (TIMERINTERVALL & 0xFF00)>>8;
+                     sendbuffer[15] = (TIMERINTERVALL & 0x00FF);
+                     sendbuffer[8] = ladeposition;
+                     sendbuffer[0]=0xD1; // kein effekt programmiert
+                     //Serial.printf("------------------------------------->  first abschnitt, endposition: %d\n",endposition);
+                     
+                     /*
+                      if (code == 0xF0) // cncstatus fuer go_home setzen
+                      {
+                      
+                      sendbuffer[0]=0x45;
+                      
+                      cncstatus |= (1<<GO_HOME); // Bit fuer go_home setzen
+                      usb_rawhid_send((void*)sendbuffer, 50);
+                      }
+                      else if (code == 0xF1)
+                      {
+                      sendbuffer[0]=0x44;
+                      cncstatus &= ~(1<<GO_HOME); // Bit fuer go_home zuruecksetzen
+                      usb_rawhid_send((void*)sendbuffer, 50);
+                      }
+                      */
+                     
+                     // Abschnitt 0 melden
+                     
+                     RawHID.send(sendbuffer, 50);
+                  }
+                  else // Abschnittnummer > 0
+                  {
+                     ringbufferstatus |= (1<<INNERBIT);
+                     // Ablauf schon gestartert
+                     //          Serial.printf("  -----                   Ablauf gestartet, abschnittnummer: %d\n",abschnittnummer);
+                      
+                  }
+                  
+                  //             if (buffer[9]& 0x02)// letzter Abschnitt
+                  
+                  //            Serial.printf("------------------------                buffer 25: %d\n",buffer[25]);
+                  
+                  // lage im Ablauf: 
+                  // 1: erster Abschnitt
+                  // 2: letzter Abschnitt
+                  // 3: lnur 1 Abschnitt
+                  // 0: innerer Abschnitt
+                  
+                  if (buffer[25]& 0x02)// letzter Abschnitt
+                  {
+                         //Serial.printf("------------------------default  last abschnitt default\n");
+                     ringbufferstatus |= (1<<LASTBIT); // letzter Abschnitt
+                     if (ringbufferstatus & (1<<FIRSTBIT)) // nur ein Abschnitt
+                     {
+                        // endposition setzen
+                        //Serial.printf("------------------------ default erster ist letzter Abschnitt\n");
+                        endposition=abschnittnummer; // erster ist letzter Abschnitt
+                        
+                        //                      Serial.printf("------------------------  nur ein abschnitt endposition: %d   * ringbufferstatus: %d\n",endposition, ringbufferstatus);
+                     }
+                     
+                  }// letzter Abschnitt
+                  
+                  // empfangene Daten vom buffer in CNCDaten laden
+                  //  if (abschnittnummer == 0)
+                  {
+                     
+                     uint8_t pos=(abschnittnummer);
+                     
+                     pos &= 0x03; // 2 bit // Beschraenkung des index auf Buffertiefe 
+                    //Serial.printf("   DEVICE_MILL: CNC-Daten. abschnittnummer: %d endposition: %d pos: %d\n",abschnittnummer,endposition,pos);
+                     //if (abschnittnummer>8)
+                     
+                     {
+                        //lcd_putint1(pos);
+                     }
+                     
+                     // Daten laden in ringbuffer an Position pos
+                     uint8_t i=0;
+                     /*
+                      for(i=0;i<10;i++)
+                      {
+                      //Serial.printf("%d\t",i);
+                      }
+                      */
+                     ////Serial.printf("\n");
+                     //OSZI_A_LO();
+                     //              //Serial.printf("default: abschnittnummer: %d pos: %d\n",abschnittnummer,pos);
+                     //for(i=0;i<USB_DATENBREITE;i++) // 5 us ohne printf, 10ms mit printf
+                     for(i=0;i<48;i++) // 5 us ohne printf, 10ms mit printf
+                     { 
+                        //Serial.printf("%d \t",buffer[i]);
+                       // CNCDaten[pos][i]=buffer[i];  
+                        CNCDaten[0][i]=buffer[i];  
+                        CNC_Data[i]=buffer[i];  
+                     }
+                     //OSZI_A_HI();
+                     //               //Serial.printf("\n");
+                     
+                  }
+                  
+                  
+                  // Erster Abschnitt, Beim Start naechsten Abschnitt ebenfalls laden, Anfrage an host
+                  
+                  
+                  if ((abschnittnummer == 0)&&(endposition)) // endposition ist > 0, weitere daten
+                  {
+                     
+                        //                   //Serial.printf("erster Abschnitt, mehr Abschnitte ladeposition: %d endposition: %d\n",ladeposition,endposition);
+                        //lcd_putc('*');
+                        
+                        sendbuffer[5]=(abschnittnummer & 0xFF00) >> 8;;
+                        sendbuffer[6]=abschnittnummer & 0x00FF;
+                        sendbuffer[8]=ladeposition;
+                        sendbuffer[0]=0xAF; // next
+                        // AF nicht mehr gemeldet             
+                        //             uint8_t senderfolg = usb_rawhid_send((void*)sendbuffer, 50);
+                        //                     //Serial.printf("mehr Abschnitte senderfolg; %d\n",senderfolg);
+                        sei();
+                        //  sendbuffer[0]=0x00;
+                        //  sendbuffer[5]=0x00;
+                        //  sendbuffer[6]=0x00;
+                        
+                        
+                      
+                  }
+                  
+                  ringbufferstatus &= ~(1<<FIRSTBIT);
+                  //          ringbufferstatus |= (1<<STARTBIT);
+                  // Ringbuffer ist voll oder  letzter Abschnitt schon erreicht
+                  //           //Serial.printf("end USB abschnittnummer: %d ringbufferstatus: %d\n",abschnittnummer,ringbufferstatus);
+                  //            //Serial.printf("\n****************************************\n");
+                  //            //Serial.printf("Run Abschnitt %d\n",abschnittnummer);
+                  //            //Serial.printf("****************************************\n");
+                  
+                  // if ((abschnittnummer ==1 )||((abschnittnummer ==0 )&&(ringbufferstatus & (1<<LASTBIT)))) 
+                  if (((abschnittnummer ==0 )&&(ringbufferstatus & (1<<LASTBIT)))) 
+                  {
+                        //                //Serial.printf("abschnittnummer 1\n");
+                        ringbufferstatus &= ~(1<<LASTBIT);
+                        ringbufferstatus |= (1<<STARTBIT);
+                   }
+                  if (abschnittnummer == 0)
+                  {
+                     //               startTimer2();
+                     //interrupts();
+                     
+                  }
+                  
+                  // end case 1
+              
+                  
+                  // xxx          
+                  
+            
+         }break; // 0xD7
             
 #pragma mark default
          default:
@@ -3859,38 +4220,42 @@ if (sinceusb > 100)
          {
             drillupdownstatus |= (1<<DRILLTASTE_UP);
             sendbuffer[0]=0xBB;
-         
+            
          }
          else
          {
             drillupdownstatus &= ~(1<<DRILLTASTE_DOWN); // kein 0xBB mehr
             drillupdownstatus &= ~(1<<DRILLTASTE_UP);
-
-         // ***************************************
-         sendbuffer[0]=0xAD; // End
-         // ***************************************
-         
+            
+            // ***************************************
+            sendbuffer[0]=0xAD; // End
+            // ***************************************
+            
          }
          sendbuffer[5]=(abschnittnummer & 0xFF00) >> 8;
          sendbuffer[6]=abschnittnummer & 0x00FF;
          
          sendbuffer[7]=(aktuelleladeposition & 0xFF00) >> 8;
          sendbuffer[8]=aktuelleladeposition & 0x00FF;
-
-      Serial.printf("\t+++   sendstatus last  sendstatus: %d +++ ladeposition: %d sendbuffer(8): %d\n",sendstatus,ladeposition,sendbuffer[8]);
+         
+         Serial.printf("\t+++   sendstatus last  sendstatus: %d +++ ladeposition: %d sendbuffer(8): %d code: %d\n",sendstatus,ladeposition,sendbuffer[8], code);
          /*
-       //  Serial.printf("\nsendbuffer:\n"); 
-         uint8_t i=0;
+          //  Serial.printf("\nsendbuffer:\n"); 
+          uint8_t i=0;
           for(i=0;i<48;i++)
           {
           //Serial.printf("%d\t",sendbuffer[i]);
           }
-         Serial.printf("\n");
-*/
+          Serial.printf("\n");
+          */
          // Drillmotor abstellen
-         drillspeed = 0;
-         analogWrite(DRILL_PWM_PIN,drillspeed); 
-
+         /*
+         if (code == 0) // Task, ist abgearbeitet
+         {
+            drillspeed = 0;
+            analogWrite(DRILL_PWM_PIN,drillspeed); 
+         }
+          */
          RawHID.send(sendbuffer, 50);
          sendstatus = 0;
       }
@@ -4047,6 +4412,7 @@ if (sinceusb > 100)
          Serial.printf("lage == 2 Abschnitt 0 laden nur 1 Abschnitt anschlagstatus: %d\n",anschlagstatus);
          ringbufferstatus |=(1<<ENDBIT); // unbenutzt
          ringbufferstatus |=(1<<LASTBIT);
+      
       }
       AbschnittCounter+=1;
       //Serial.printf("+++ Ersten Abschnitt laden END\n");

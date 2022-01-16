@@ -166,6 +166,13 @@
 #define RAMPOKBIT    7
 #define RAMPSCHRITT  10
 
+// new
+#define STARTIMPULSDAUER   100
+#define ENDIMPULSDAUER     20
+#define TASTENENDIMPULSDAUER     20
+
+#define RAMPSCHRITT        4
+# define RAMPDELAY 80 // delay fuerr Reduktion Impulsdauer
 // revision
 #define TASTE1     67
 #define TASTE2     109
