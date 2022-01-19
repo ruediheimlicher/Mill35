@@ -2525,7 +2525,7 @@ if (sinceusb > 100)
  #pragma mark B7             
          case 0xB7: // report_move_Drill 
          {
-            Serial.printf("\nB7 \n");
+            Serial.printf("\nB7 report_move_Drill \n");
             sendbuffer[0]=0xB9;
             sendbuffer[24] =  buffer[32];
            
@@ -3011,7 +3011,7 @@ if (sinceusb > 100)
             interrupts();
          }break;
 
-#pragma mark   DF            Pfeiltaste      Steps          
+#pragma mark   DF            Pfeiltaste      diskrete Steps          
          case 0xDF:
          {
             Serial.printf("* DF Steps code: %d Device: %d\n",code, device,repeatcounter);
@@ -4317,7 +4317,7 @@ if (sinceusb > 100)
    if (ringbufferstatus & (1<<STARTBIT)) // Buffer ist in Ringbuffer geladen, Schnittdaten von Abschnitt 0 laden
    {
       //noInterrupts();
-      
+      Serial.printf("CNC-routinen    Startbit da\n");
       //Serial.printf("CNC-routinen    Startbit da            Abschnitt 0 laden ringbufferstatus: %d code: %d\n",ringbufferstatus, code);
       ringbufferstatus &= ~(1<<STARTBIT);  // Startbit entfernen      
       ladeposition=0;  // laufender Zaehler fuer Ringbuffer, gefiltert mit Ringbuffertiefe
@@ -4423,6 +4423,7 @@ if (sinceusb > 100)
    } // end 1<<STARTBIT
    else if (ringbufferstatus & (1<<INNERBIT))
    {
+      Serial.printf("CNC-routinen    Innerbit da\n");
       //Serial.printf("\n *** *** *** INNERBIT Inneres Element    Abschnittcounter: %d  ringbufferstatus: %d code: %d\n",ringbufferstatus,AbschnittCounter,code);
       ringbufferstatus &= ~(1<<INNERBIT);
       uint8_t lage = 0;
@@ -4439,7 +4440,7 @@ if (sinceusb > 100)
    }
    else if (ringbufferstatus & (1<<LASTBIT))
    {
-      
+//      Serial.printf("CNC-routinen    Lastbit da\n");
    }
    
 #pragma mark Anschlag
