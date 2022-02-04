@@ -3260,6 +3260,7 @@ if (sinceusb > 100)
             // Motor
          {
             drillspeed = buffer[DRILL_BIT];
+            
             analogWrite(DRILL_PWM_PIN,drillspeed); // 256 ist 100%
             Serial.printf("DA Motor: %d\n",drillspeed);
          }break;
