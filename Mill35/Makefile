@@ -74,7 +74,7 @@
 #   [s] ssd1351 [x] x10 
 #
 #APP_LIBS_LIST =  ADC SPI LiquidCrystal_I2C i2c_t3 TeensyThreads Wire
-APP_LIBS_LIST =  ADC SPI  TeensyThreads  TeensyStep
+APP_LIBS_LIST =  ADC SPI LiquidCrystal_I2C  Wire TeensyThreads # i2c_t3
 
 # List user's libraries here
 # !!! Help: http://bit.ly/2AEscDx
@@ -84,13 +84,13 @@ APP_LIBS_LIST =  ADC SPI  TeensyThreads  TeensyStep
 #
 # USER = [L] LiquidCrystal-I2C [S] SD Servo 
 #
-USER_LIBS_LIST =   TeensyStep
+USER_LIBS_LIST =  TeensyStep
 
 # List local libraries here
 # !!! Help: http://bit.ly/2juEP91
 # default = empty = all
 #
-LOCAL_LIBS_LIST =
+LOCAL_LIBS_LIST = 0 #TeensyStep
 
 # List core, application and user's libraries to be excluded
 # !!! Help: http://bit.ly/2AijUOI
